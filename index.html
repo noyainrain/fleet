@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>Fleet</title>
+        <link rel="stylesheet" href="fleet.css?bar" />
+        <script type="module" src="fleet.js?barx"></script>
+    </head>
+
+    <body>
+        <fleet-ui class="paused">
+            <svg class="layer canvas" xviewbox="-0.5 -0.5 1 1" viewbox="-37.5 -37.5 75 75" xviewbox="-100 -100 200 200">
+                <g>
+                    <!--<path class="object carrier" d="M -50 -150 L -50 150 L 50 150 L 50 -150 Z" />-->
+                    <g class="entities">
+                        <!--<path class="object ship" d="M 0 8 L 6 -8 L -6 -8 Z" />-->
+                        <!--<path class="object ship" d="M 0 4 L 2 -4 L -2 -4 Z" />-->
+                        <g class="object ship">
+                            <!--<path d="M -1.5 3 A 1.5 1 0 0 0 1.5 3 L 2 -4 L -2 -4 Z" />-->
+                            <!--<path d="M -2 2 A 2 2 0 0 0 2 2 L 2 -4 L -2 -4 Z" />-->
+                            <!-- best -->
+
+                            <!--<path d="M -2 2 A 2 2 0 0 0 2 2 L 2 -4 L -2 -4 Z" transform="translate(0, 0)"/>
+                            <path d="M -2 1 A 2 3 0 0 0 2 1 L 2 -4 L -2 -4 Z" transform="translate(5, 0)"/>
+                            <path d="M -2 0 A 2 4 0 0 0 2 0 L 2 -4 L -2 -4 Z" transform="translate(10, 0)"/>
+                            <path d="M -2 -1 A 2 5 0 0 0 2 -1 L 2 -4 L -2 -4 Z" transform="translate(15, 0)"/>
+                            <path d="M -2 -2 A 2 6 0 0 0 2 -2 L 2 -4 L -2 -4 Z" transform="translate(20, 0)"/>-->
+
+                            <!--<path d="M -2 0 A 2 4 0 0 0 2 0 L 2 -4 L -2 -4 Z" />-->
+                            <g transform="translate(0, 0)">
+                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
+                            <!--<path class="wing" d="M -2.5 -3 L -2.5 -0.5 L -2 0 L -2 -3.5 Z" />
+                            <path class="wing" d="M  2.5 -3 L  2.5 -0.5 L  2 0 L  2 -3.5 Z" />-->
+                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
+                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
+                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 1 1 0 0 0 -1 3.46" />-->
+                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 4 0 0 0 -1 3.46" />-->
+                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 1 1.5 0 0 0 -1 3.46" />-->
+                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 4 0 0 0 -1 3.46" />-->
+                            <path class="window" d="M -1.73 2 A 2 4 0 0 0 1.73 2 A 2 1 0 0 1 -1.73 2" />
+                            </g>
+                            <g transform="translate(6, 0)" style="display: none">
+                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
+                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
+                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
+                            <!--<path class="window" d="M -1.5 2.65 A 2 4 0 0 0 1.5 2.65 A 1.5 0.25 0 0 0 -1.5 2.65" />-->
+                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 4 0 0 0 -1.32 3" />-->
+                            <path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 1 0 0 1 -1.32 3" />
+                            </g>
+                            <g transform="translate(12, 0)" style="display: none">
+                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
+                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
+                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
+                            <!--<path class="window" d="M -1.5 2.65 A 2 4 0 0 0 1.5 2.65 A 1.5 0.25 0 0 0 -1.5 2.65" />-->
+                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 4 0 0 0 -1.32 3" />-->
+                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 0.5 0 0 0 -1.32 3" />-->
+                            <path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 1 0 0 1 -1 3.46" />
+                            </g>
+
+
+                            <!--<path d="M -1 3 L -2 0 L -2 -4 L 2 -4 L 2 0 L 1 3 Z" />-->
+                            <!--<path d="M -1 3 L -2 0 L -2 -4 L 2 -4 L 2 0 L 1 3 Z" />-->
+                            <!--<circle cx="0" cy="3" r="1" />-->
+                        </g>
+                    </g>
+                    <g class="annotations"></g>
+                </g>
+            </svg>
+
+            <p class="layer info"></p>
+
+            <div class="layer start">
+                <div class="device">
+                    <svg width="100" height="50">
+                        <rect x="1" y="1" width="99" height="48" rx="10" ry="10"></rect>
+                    </svg>
+                    <p>Hold your device like this</p>
+                </div>
+                <button class="play">
+                    <svg width="48" height="48">
+                        <path d="M 1 1 L 47 24 L 1 47 Z" />
+                    </svg>
+                </button>
+            </div>
+
+            <style>
+                button {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                }
+
+                fleet-ui {
+                    display: block;
+                    background: black;
+                    height: 100%;
+                }
+
+                fleet-ui:not(.fleet-orientation) .device {
+                    display: none;
+                }
+
+                fleet-ui .play svg {
+                    /*stroke: green;*/
+                    fill: green;
+                }
+
+                fleet-ui.fleet-orientation .play {
+                    display: none;
+                }
+
+                fleet-ui:not(.paused) .start {
+                    display: none;
+                }
+
+                fleet-ui .start {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: black;
+                    background: rgba(0, 0, 0, 0.75);
+                    box-sizing: border-box;
+                    text-align: center;
+                    padding: 3rem 1.5rem;
+                }
+
+                .device rect,
+                .device text {
+                    stroke: green;
+                    vector-effect: non-scaling-stroke;
+                }
+
+                fleet-ui .info {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    /*z-index: 1;*/
+                    color: green;
+                    white-space: pre;
+                }
+
+                fleet-ui .canvas {
+                    display: block;
+                    width: 100%;
+                    height: 100%;
+                    background: black;
+                }
+
+                fleet-ui > svg > g {
+                    transform: scale(1, -1);
+                    transform: scaleY(-1);
+                }
+
+                fleet-ui .annotations {
+                    fill: none;
+                }
+
+                fleet-ui .annotations * {
+                    vector-effect: non-scaling-stroke;
+                }
+
+                fleet-ui .collision {
+                    stroke: red;
+                }
+
+                fleet-ui .hitbox {
+                    stroke: white;
+                }
+
+                fleet-ui .annotation line {
+                    stroke: green;
+                }
+
+                fleet-ui .annotation line:last-of-type {
+                    stroke: blue;
+                }
+
+                fleet-ui .joint {
+                    stroke: green;
+                    stroke: orange;
+                }
+
+                fleet-ui .joint.drifting {
+                    stroke: red;
+                }
+
+                fleet-ui .ship {
+                    /*fill: silver;*/
+                    fill: #ccc;
+                }
+
+                fleet-ui .ship .window {
+                    fill: SkyBlue;
+                    fill: MediumTurquoise;
+                    fill: SteelBlue;
+                    fill: SeaGreen;
+                    fill: rgba(0, 128, 0, 0.5);
+                    fill: MediumSeaGreen;
+                    fill: rgb(0, 64, 0);
+                    fill: #666;
+                    fill: #4c6c4c; /* 75% #666 + 25% Green */
+                }
+
+                fleet-ui .ship .wing {
+                    fill: #999;
+                }
+
+                fleet-ui .ship circle {
+                    fill: blue;
+                }
+            </style>
+
+            <!--<svg class="object carrier" width="100" height="300">
+                <path d="M 0 0 L 0 300 L 100 300 L 100 0 Z" />
+            </svg>
+            <svg class="object ship" width="16" height="20">
+                <path d="M 6 0 L 0 16 L 12 16 Z" />
+            </svg>-->
+        </fleet-ui>
+    </body>
+</html>
