@@ -12,6 +12,35 @@
     <body>
         <fleet-ui class="paused">
             <svg class="layer canvas" xviewbox="-0.5 -0.5 1 1" viewbox="-37.5 -37.5 75 75" xviewbox="-100 -100 200 200">
+                <defs>
+                    <linearGradient id="lock-gradient">
+                        <stop offset="0%" stop-color="#666"></stop>
+                        <stop offset="50%" stop-color="#ccc"></stop>
+                        <stop offset="100%" stop-color="#666"></stop>
+                    </linearGradient>
+
+                    <radialGradient id="engine-gradient-3m" cy="0%" xfy="0%">
+                        <stop offset="0%" stop-color="white"></stop>
+                        <stop offset="33%" stop-color="DeepSkyBlue" stop-opacity="0.66"></stop>
+                        <stop offset="100%" stop-color="DeepSkyBlue" stop-opacity="0"></stop>
+                    </radialGradient>
+
+                    <radialGradient id="engine-gradient" cy="0%" xfy="0%">
+                        <stop offset="0%" stop-color="white"></stop>
+                        <stop offset="50%" stop-color="DeepSkyBlue" stop-opacity="0.5"></stop>
+                        <stop offset="100%" stop-color="DeepSkyBlue" stop-opacity="0"></stop>
+                    </radialGradient>
+
+                    <linearGradient id="engine-gradient2" y2="100%" x2="0%">
+                        <stop offset="25%" stop-color="DeepSkyBlue" stop-opacity="0.75"></stop>
+                        <stop offset="0%" stop-color="blue" stop-opacity="1"></stop>
+                        <stop offset="25%" stop-color="blue" stop-opacity="0.75"></stop>
+                        <stop offset="100%" stop-color="blue" stop-opacity="0"></stop>
+                    </linearGradient>
+
+                    <rect id="engine" x="-0.5" width="1" height="6" style="fill: url(#engine-gradient)" />
+                </defs>
+
                 <g>
                     <!--<path class="object carrier" d="M -50 -150 L -50 150 L 50 150 L 50 -150 Z" />-->
                     <g class="entities">
@@ -29,35 +58,95 @@
                             <path d="M -2 -2 A 2 6 0 0 0 2 -2 L 2 -4 L -2 -4 Z" transform="translate(20, 0)"/>-->
 
                             <!--<path d="M -2 0 A 2 4 0 0 0 2 0 L 2 -4 L -2 -4 Z" />-->
+
                             <g transform="translate(0, 0)">
-                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
-                            <!--<path class="wing" d="M -2.5 -3 L -2.5 -0.5 L -2 0 L -2 -3.5 Z" />
-                            <path class="wing" d="M  2.5 -3 L  2.5 -0.5 L  2 0 L  2 -3.5 Z" />-->
-                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
-                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
-                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 1 1 0 0 0 -1 3.46" />-->
-                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 4 0 0 0 -1 3.46" />-->
-                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 1 1.5 0 0 0 -1 3.46" />-->
-                            <!--<path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 4 0 0 0 -1 3.46" />-->
+
+                            <use
+                                class="thruster thruster-ne" href="#engine"
+                                transform="translate(1.23, 2) rotate(0)"
+                            />
+                            <use
+                                class="thruster thruster-nw" href="#engine"
+                                transform="translate(-1.23, 2) rotate(0)"
+                            />
+                            <!--<use
+                                class="thruster thruster-ne" href="#engine"
+                                transform="translate(2, -0.5) rotate(0)"
+                            />
+                            <use
+                                class="thruster thruster-nw" href="#engine"
+                                transform="translate(-2, -0.5) rotate(0)"
+                            />-->
+                            <use
+                                class="thruster thruster-wn" href="#engine"
+                                transform="translate(-1.73, 1.5) rotate(90)"
+                            />
+                            <use
+                                class="thruster thruster-ws" href="#engine"
+                                transform="translate(-2, -3.5) rotate(90)"
+                            />
+                            <use
+                                class="thruster thruster-sw" href="#engine"
+                                transform="translate(-1.5, -4) rotate(180)"
+                            />
+                            <use
+                                class="thruster thruster-se" href="#engine"
+                                transform="translate(1.5, -4) rotate(180)"
+                            />
+                            <!--<use
+                                class="thruster thruster-sw" href="#engine"
+                                transform="translate(-2, -3.5) rotate(180)"
+                            />
+                            <use
+                                class="thruster thruster-se" href="#engine"
+                                transform="translate(2, -3.5) rotate(180)"
+                            />-->
+                            <use
+                                class="thruster thruster-es" href="#engine"
+                                transform="translate(2, -3.5) rotate(270)"
+                            />
+                            <use
+                                class="thruster thruster-en" href="#engine"
+                                transform="translate(1.73, 1.5) rotate(270)"
+                            />
+                            <path class="wings" d="M -2 -4 L -2.5 -3.5 L -2.5 -0.5 L -2 0 L 2 0 L 2.5 -0.5 L 2.5 -3.5 L 2 -4 Z" />
+                            <!--<rect class="wings" x="-2" y="-4" width="4" height="6" />-->
+                            <path class="body" d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
                             <path class="window" d="M -1.73 2 A 2 4 0 0 0 1.73 2 A 2 1 0 0 1 -1.73 2" />
+                            <rect class="lock" x="-1.5" y="-4.5" width="3" height="0.5" />
+
+
+                            <!--<rect class="lock" x="-1.5" y="-4.5" width="3" height="1" rx="0.5" ry="0.5" />-->
+                            <!--<rect class="lock" x="-2" y="-4.5" width="4" height="0.5" />-->
+                            <!--<rect class="engine" x="-2" y="5" width="2" height="4" transform="rotate(180)" fill="url(#engine-gradient2)" />
+                            <path d="M -3 5 A 1 4 0 0 1 -5 5 Z" transform="rotate(180)" fill="url(#engine-gradient2)" />
+                            <path d="M -6 5 A 1 4 0 0 1 -8 5 Z" transform="rotate(180)" fill="url(#engine-gradient)" />-->
+
+
+                            <!--<use href="#engine" transform="translate(1.23, 2) rotate(0)" />
+                            <use href="#engine" transform="translate(-1.23, 2) rotate(0)" />
+                            <use href="#engine" transform="translate(-1.73, 1.5) rotate(90)" />
+                            <use href="#engine" transform="translate(-2, -3.5) rotate(90)" />
+                            <use href="#engine" transform="translate(-1.5, -4) rotate(180)" />
+                            <use href="#engine" transform="translate(1.5, -4) rotate(180)" />
+                            <use href="#engine" transform="translate(2, -3.5) rotate(270)" />
+                            <use href="#engine" transform="translate(1.73, 1.5) rotate(270)" />-->
                             </g>
-                            <g transform="translate(6, 0)" style="display: none">
-                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
-                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
-                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
-                            <!--<path class="window" d="M -1.5 2.65 A 2 4 0 0 0 1.5 2.65 A 1.5 0.25 0 0 0 -1.5 2.65" />-->
-                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 4 0 0 0 -1.32 3" />-->
-                            <path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 1 0 0 1 -1.32 3" />
-                            </g>
-                            <g transform="translate(12, 0)" style="display: none">
-                            <path d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
-                            <path class="wing" d="M -2.5 -3.5 L -2.5 -0.5 L -2 0 L -2 -4 Z" />
-                            <path class="wing" d="M  2.5 -3.5 L  2.5 -0.5 L  2 0 L  2 -4 Z" />
-                            <!--<path class="window" d="M -1.5 2.65 A 2 4 0 0 0 1.5 2.65 A 1.5 0.25 0 0 0 -1.5 2.65" />-->
-                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 4 0 0 0 -1.32 3" />-->
-                            <!--<path class="window" d="M -1.32 3 A 2 4 0 0 0 1.32 3 A 2 0.5 0 0 0 -1.32 3" />-->
-                            <path class="window" d="M -1 3.46 A 2 4 0 0 0 1 3.46 A 2 1 0 0 1 -1 3.46" />
-                            </g>
+
+                            <!--<g transform="translate(10, 0)">
+                            <use href="#engine" transform="translate(2, 1.5) rotate(0)" />
+                            <use href="#engine" transform="translate(-2, 1.5) rotate(0)" />
+                            <use href="#engine" transform="translate(-2.5, 1) rotate(90)" />
+                            <use href="#engine" transform="translate(-2.5, -3) rotate(90)" />
+                            <use href="#engine" transform="translate(-2, -3.5) rotate(180)" />
+                            <use href="#engine" transform="translate(2, -3.5) rotate(180)" />
+                            <use href="#engine" transform="translate(2.5, -3) rotate(270)" />
+                            <use href="#engine" transform="translate(2.5, 1) rotate(270)" />
+                            <path class="wings" d="M -2 -4 L -2.5 -3.5 L -2.5 1.5 L -2 2 L 2 2 L 2.5 1.5 L 2.5 -3.5 L 2 -4 Z" />
+                            <path class="body" d="M -2 -4 L -2 2 A 2 2 0 0 0 2 2 L 2 -4 Z" />
+                            <path class="window" d="M -2 2 A 2 2 0 0 0 2 2 A 2 0.5 0 0 1 -2 2" />
+                            <rect class="lock" x="-1.5" y="-4.5" width="3" height="0.5" />
+                            </g>-->
 
 
                             <!--<path d="M -1 3 L -2 0 L -2 -4 L 2 -4 L 2 0 L 1 3 Z" />-->
@@ -205,8 +294,20 @@
                     fill: #4c6c4c; /* 75% #666 + 25% Green */
                 }
 
-                fleet-ui .ship .wing {
+                fleet-ui .ship .wings {
                     fill: #999;
+                }
+
+                fleet-ui .ship .lock {
+                    fill: url("#lock-gradient");
+                }
+
+                fleet-ui .ship .engine {
+                    fill: url(#engine-gradient);
+                }
+
+                fleet-ui .ship .thruster {
+                    opacity: 0;
                 }
 
                 fleet-ui .ship circle {

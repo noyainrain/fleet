@@ -131,6 +131,8 @@ class Polygon {
 
 class UI extends HTMLElement {
     ship;
+    #thrusters;
+
     t;
     #keys = new Set();
     #control = new DOMPoint();
@@ -326,6 +328,7 @@ class UI extends HTMLElement {
             //this.#entities[0].pos = new Vector(100, 200);
             this.#info = this.querySelector(".info");
             this.ship = this.#entities[this.#entities.length - 1];
+            this.#thrusters = this.ship.node.querySelectorAll(".thruster");
 
             this.init();
             this.t = new Date();
@@ -600,6 +603,7 @@ class UI extends HTMLElement {
             ar = (st - s) / t;*/
 
             // cannot (de)acel while spinning, bc spinning around non-COM needs vel
+            // TODO rename to drosselung
             const spare = 1 - Math.abs(this.#control.x);
 
             const vf = Vector.dot(this.ship.velocity, dir);
@@ -618,6 +622,17 @@ class UI extends HTMLElement {
             }*/
 
             aRot = Math.max(Math.min((this.#control.x * TARGET_SPIN - this.ship.spin) / t, ENGINE_ROT), -ENGINE_ROT);
+
+            const EPSILON = 0.1;
+            this.#thrusters[0].style.opacity = af < -EPSILON ? 1 : 0;
+            this.#thrusters[1].style.opacity = af < -EPSILON ? 1 : 0;
+            this.#thrusters[2].style.opacity = ac < -EPSILON || aRot < 0 ? 1 : 0;
+            this.#thrusters[3].style.opacity = ac < -EPSILON || aRot > 0 ? 1 : 0;
+            this.#thrusters[4].style.opacity = af > EPSILON ? 1 : 0;
+            this.#thrusters[5].style.opacity = af > EPSILON ? 1 : 0;
+            this.#thrusters[6].style.opacity = ac > EPSILON || aRot < 0 ? 1 : 0;
+            this.#thrusters[7].style.opacity = ac > EPSILON || aRot > 0 ? 1 : 0;
+
             // console.log(aRot);
         } else {
             a = Vec.mul(dir, this.#control.y * UI.ENGINE);
