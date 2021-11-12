@@ -1,5 +1,7 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+import {Entity, Polygon, Vector} from "./fleet/core.js";
+
 /*class Vector {
     x;
     y;
@@ -29,49 +31,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
         return this.mul(1 / this.abs());
     }
 }*/
-
-class Vector {
-    static add(a, b) {
-        return new DOMPoint(a.x + b.x, a.y + b.y);
-    }
-
-    static sub(a, b) {
-        return new DOMPoint(a.x - b.x, a.y - b.y);
-    }
-
-    static dot(a, b) {
-        return a.x * b.x + a.y * b.y;
-    }
-
-    /*static cross(a, b) {
-            // a2 0 - 0 b2
-            // a1 0 - 0 b1
-            // a1 b2 - a2 b1
-            // b.x  b.y
-            // b.y -b.x
-            // dot(a, getNormal(b));
-            // a.x * b.x + a.y * b.y;
-            // a.x * b.y + a.y * -b.x;
-            // (a.x * b.y) - (a.y * b.x)
-        // return a.y * b.x - a.x * by;
-    }*/
-
-    static mul(v, s) {
-        return new DOMPoint(v.x * s, v.y * s);
-    }
-
-    static abs(v) {
-        return Math.sqrt(v.x * v.x + v.y * v.y);
-    }
-
-    static norm(v) {
-        return Vec.mul(v, 1 / Vec.abs(v));
-    }
-
-    static getNormal(v) {
-        return new DOMPoint(-v.y, v.x);
-    }
-}
 
 class SVG {
     static makeLine(p1, p2) {
@@ -106,29 +65,6 @@ class SVG {
 
 const Vec = Vector;
 
-class Polygon {
-    vertices;
-
-    static fromRect(x, y, width, height) {
-        return new Polygon([
-            new DOMPoint(x, y), new DOMPoint(x, y + height), new DOMPoint(x + width, y + height),
-            new DOMPoint(x + width, y)
-        ]);
-    }
-
-    constructor(vertices) {
-        this.vertices = vertices;
-    }
-
-    get edges() {
-        return this.vertices.map((v, i) => [v, this.vertices[(i + 1) % this.vertices.length]]);
-    }
-
-    transform(matrix) {
-        return new Polygon(this.vertices.map(v => matrix.transformPoint(v)));
-    }
-}
-
 class UI extends HTMLElement {
     ship;
     #thrusters;
@@ -161,10 +97,9 @@ class UI extends HTMLElement {
     //static ENGINE = 9.80665 * 1.67; // m / s2
     //static TARGET_VELOCITY = 50; // m / s ; reached in 3s
 
-    //static ENGINE = 9.80665 * 5; // m / s2
-    //static TARGET_VELOCITY = 50; // m / s ; reached in 1s
-    static ENGINE = 9.80665 * 2.5; // m / s2
-    static TARGET_VELOCITY = 50; // m / s ; reached in 2s
+    //static ENGINE = 9.80665 * 5; // m / s2; reached in 1s
+    static ENGINE = 9.80665 * 2.5; // m / s2; reached in 2s
+    static TARGET_VELOCITY = 50; // m / s
 
     constructor() {
         super();
@@ -330,78 +265,12 @@ class UI extends HTMLElement {
             this.ship = this.#entities[this.#entities.length - 1];
             this.#thrusters = this.ship.node.querySelectorAll(".thruster");
 
-            this.init();
+            this.#init();
             this.t = new Date();
             this.#second = this.t;
             requestAnimationFrame(() => this.step());
             //this.play();
         }, 0);
-    }
-
-    init() {
-        this.#createShip();
-        this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
-        this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
-        this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
-    }
-
-    #createShip() {
-        // const decks = 20 + Math.floor(Math.random() * (10 + 1));
-        const decks = 70 + Math.floor(Math.random() * (10 + 1));
-        const cells = 20 + Math.floor(Math.random() * (10 + 1));
-
-        const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
-
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
-        g.append(rect);
-
-        const width = cells * 4 + 2;
-        const height = decks * 4 + 2;
-        const left = -width / 2;
-        const bottom = -height / 2;
-        rect.setAttribute("width", width);
-        rect.setAttribute("height", height);
-        rect.setAttribute("x", left);
-        rect.setAttribute("y", bottom);
-        rect.setAttribute("rx", 1);
-        rect.setAttribute("ry", 1);
-        rect.style.fill = "silver";
-        for (let y = 0; y < decks; y++) {
-            for (let x = 0; x < cells; x++) {
-                const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                w.setAttribute("width", 2);
-                w.setAttribute("height", 1);
-                w.setAttribute("x", left + 4 * x + 1 + 1);
-                w.setAttribute("y", bottom + 4 * y + 2 + 1);
-                /*w.setAttribute("rx", 0.25);
-                w.setAttribute("ry", 0.25);*/
-                w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
-                g.append(w);
-            }
-        }
-
-        this.canvas.querySelector(".entities").append(g);
-        const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
-        entity.update(new DOMPoint(100, 100), 0);
-        //entity.pos = new Vector(-left, 0);
-        // entity.v = new Vector(0, 10);
-        // entity.vRot = Math.PI / 8;
-        this.#entities.push(entity);
-    }
-
-    #createContainer(position) {
-        // https://en.wikipedia.org/wiki/Intermodal_container
-        const width = 6; // 12
-        const height = 2.5; // 16
-        const rect = SVG.makeRect(
-            new DOMPoint(-width / 2, -height / 2), width, height, {fill: "silver"}
-        );
-        const shape = Polygon.fromRect(-width / 2, -height / 2, width, height);
-        const container = new Entity(rect, shape, 2.5 * 1000); // 1);
-        container.update(position, 0);
-        this.#entityLayer.append(rect);
-        this.#entities.push(container);
-        return container;
     }
 
     step() {
@@ -498,6 +367,7 @@ class UI extends HTMLElement {
         // global cam
         this.querySelector("fleet-ui > svg > g").style.transform =
             // `scale(${s}, -${s}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
+            // `scale(0.25) scaleY(-1) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
             `scaleY(-1) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
 
         for (let entity of this.#entities) {
@@ -574,15 +444,42 @@ class UI extends HTMLElement {
     #simulateEngines(t) {
         // Ship
         // const ENGINE_ROT = UI.ENGINE / 8; // 8 = radius of ship
-        const ENGINE_ROT = 9.80665 * 5 / 8; // 8 = radius of ship
+        // const ENGINE_ROT = 9.80665 * 5 / 8; // 8 = radius of ship
 
+        // a) use full engine to come to target spin as soon as possible:
+        //    90 deg / s would be good to comfortably navigate a corner
+        //    BUT: 1s throttle will be added on top of 2s decel :/
+        //    -> 180d/s target = 0.5s throttle
+        //       BUT also 0.5s turn which makes everything more sensitive
+        // =>
+        // b) use lower accel to get first 90d turn in 1s (after that spin will be 180d)
+        //    i.e. 45d accel, 45d deaccel = 0.5s throttle
+        // const TARGET_SPIN = Math.PI; // rad / s
+
+        // theta = alpha * t * t / 2
+        // alpha = 2 * theta / (t * t)
+        // a = 2 * theta * r / (t * t); m / (s * s)
+        // a = 2 * pi / 4 * 4 / (1 / 2 * 1 / 2)
+        // a = 2 * pi * 4
+
+        // spin = alpha * t;
+        // spin = a * t / r;
+        // a = spin * r / t; m / (s * s)
+        // a = pi * 4
+        // const ENGINE_ROT = this.ship.r * 4 * Math.PI; // 90 grad in 0.5s = 180 grad in 1s
+        // const ENGINE_ROT = this.ship.r * Math.PI; // 22.5 grad in 0.5s = 45 grad in 1s
+        const ENGINE_ROT = this.ship.r * 2 * Math.PI; // 45 grad in 0.5s = 90 grad in 1s
         const TARGET_SPIN = Math.PI; // rad / s
+        //const ENGINE_ROT = UI.ENGINE;
+        //const TARGET_SPIN = Math.PI; // rad / s
+        // console.log(ENGINE_ROT, UI.ENGINE, ENGINE_ROT < UI.ENGINE, ENGINE_ROT / this.ship.r / Math.PI, "PI");
 
         const dir = new DOMPoint(-Math.sin(this.ship.rot), Math.cos(this.ship.rot));
         const ndir = Vector.getNormal(dir);
 
-        let a;
-        let aRot;
+        let thrustY = this.#control.y;
+        let thrustX = 0;
+        let thrustSpin = this.#control.x;
         if (this.#options.cruise) { //&& !this.ship.joint) {
             /*vt = v + a * tt;
             vt - v = a * tt;
@@ -602,17 +499,11 @@ class UI extends HTMLElement {
             /*st = s + ar * t;
             ar = (st - s) / t;*/
 
-            // cannot (de)acel while spinning, bc spinning around non-COM needs vel
-            // TODO rename to drosselung
-            const spare = 1 - Math.abs(this.#control.x);
+            //const spare = 1 - Math.abs(this.#control.x);
+            //const af = Math.max(Math.min((this.#control.y * UI.TARGET_VELOCITY - vf) / t, UI.ENGINE), -UI.ENGINE) * spare;
+            //const ac = Math.max(Math.min((0 - vc) / t, UI.ENGINE), -UI.ENGINE) * spare;
+            //aRot = Math.max(Math.min((this.#control.x * TARGET_SPIN - this.ship.spin) / t, ENGINE_ROT), -ENGINE_ROT);
 
-            const vf = Vector.dot(this.ship.velocity, dir);
-            const vc = Vector.dot(this.ship.velocity, ndir);
-            //const af = Math.max(Math.min((this.#control.y * TARGET_VELOCITY - vf) / t, ENGINE), -ENGINE);
-            //const ac = Math.max(Math.min((0 - vc) / t, ENGINE), -ENGINE);
-            const af = Math.max(Math.min((this.#control.y * UI.TARGET_VELOCITY - vf) / t, UI.ENGINE), -UI.ENGINE) * spare;
-            const ac = Math.max(Math.min((0 - vc) / t, UI.ENGINE), -UI.ENGINE) * spare;
-            a = Vec.add(Vec.mul(dir, af), Vec.mul(ndir, ac));
             // cannot (de)acel while spinning, bc spinning around non-COM needs vel
             //if (Math.abs(this.#control.x) > 0.5) { // || Math.abs(this.ship.spin) > 0.1) {
             //    a = new DOMPoint();
@@ -621,23 +512,37 @@ class UI extends HTMLElement {
             a = new DOMPoint();
             }*/
 
-            aRot = Math.max(Math.min((this.#control.x * TARGET_SPIN - this.ship.spin) / t, ENGINE_ROT), -ENGINE_ROT);
+            //const s = Math.max((this.#control.y * UI.TARGET_VELOCITY - vf) / t / UI.ENGINE, throttle);
+            //const n = Math.max((vf - this.#control.y * UI.TARGET_VELOCITY) / t / UI.ENGINE, throttle);
 
-            const EPSILON = 0.1;
-            this.#thrusters[0].style.opacity = af < -EPSILON ? 1 : 0;
-            this.#thrusters[1].style.opacity = af < -EPSILON ? 1 : 0;
-            this.#thrusters[2].style.opacity = ac < -EPSILON || aRot < 0 ? 1 : 0;
-            this.#thrusters[3].style.opacity = ac < -EPSILON || aRot > 0 ? 1 : 0;
-            this.#thrusters[4].style.opacity = af > EPSILON ? 1 : 0;
-            this.#thrusters[5].style.opacity = af > EPSILON ? 1 : 0;
-            this.#thrusters[6].style.opacity = ac > EPSILON || aRot < 0 ? 1 : 0;
-            this.#thrusters[7].style.opacity = ac > EPSILON || aRot > 0 ? 1 : 0;
+            const vf = Vector.dot(this.ship.velocity, dir);
+            const vc = Vector.dot(this.ship.velocity, ndir);
+            // cannot (de)acel while spinning, bc spinning around non-COM needs vel
+            const throttle = 1 - Math.abs(this.#control.x);
+            thrustY = Math.max(
+                Math.min((this.#control.y * UI.TARGET_VELOCITY - vf) / t / UI.ENGINE, throttle),
+                -throttle
+            );
+            thrustX = Math.max(Math.min((0 - vc) / t / UI.ENGINE, throttle), -throttle);
+            thrustSpin = Math.max(
+                Math.min(
+                    (this.#control.x * TARGET_SPIN - this.ship.spin) * this.ship.r / t / UI.ENGINE,
+                    ENGINE_ROT / UI.ENGINE
+                ),
+                -ENGINE_ROT / UI.ENGINE
+            );
+            if (thrustSpin) {
+            // console.log(thrustSpin);
+            }
 
             // console.log(aRot);
-        } else {
-            a = Vec.mul(dir, this.#control.y * UI.ENGINE);
-            aRot = this.#control.x * ENGINE_ROT;
         }
+
+        const a = Vec.add(Vec.mul(dir, thrustY * UI.ENGINE), Vec.mul(ndir, thrustX * UI.ENGINE));
+        // const alpha = thrustSpin * ENGINE_ROT / this.ship.r;
+        const alpha = thrustSpin * UI.ENGINE / this.ship.r;
+        //a = Vec.mul(dir, this.#control.y * UI.ENGINE);
+        //aRot = this.#control.x * ENGINE_ROT;
 
         // Apply linear accelaration
         // F/A18E: (2 * 98kN) / 21t ~ 9.3
@@ -652,8 +557,29 @@ class UI extends HTMLElement {
         // const ENGINE_ROT = Math.PI; // 1 / s2
         // const ENGINE_ROT = Math.PI / 2; // 1 / s2
         if (!this.norot) {
-            this.ship.spin = this.ship.spin + aRot * t;
+            this.ship.spin = this.ship.spin + alpha * t;
         }
+
+        // values are capped between 0 and 1
+        // thrustx + thrustspin may use more than thruster capacity 1
+        this.#thrusters[0].style.opacity = -thrustY;
+        this.#thrusters[1].style.opacity = -thrustY;
+        this.#thrusters[2].style.opacity = Math.max(-thrustX, 0) + Math.max(-thrustSpin, 0);
+        this.#thrusters[3].style.opacity = Math.max(-thrustX, 0) + Math.max(thrustSpin, 0);
+        this.#thrusters[4].style.opacity = thrustY;
+        this.#thrusters[5].style.opacity = thrustY;
+        this.#thrusters[6].style.opacity = Math.max(thrustX, 0) + Math.max(-thrustSpin, 0);
+        this.#thrusters[7].style.opacity = Math.max(thrustX, 0) + Math.max(thrustSpin, 0);
+
+        /*const EPSILON = 0.1;
+        this.#thrusters[0].style.opacity = af < -EPSILON ? 1 : 0;
+        this.#thrusters[1].style.opacity = af < -EPSILON ? 1 : 0;
+        this.#thrusters[2].style.opacity = ac < -EPSILON || aRot < 0 ? 1 : 0;
+        this.#thrusters[3].style.opacity = ac < -EPSILON || aRot > 0 ? 1 : 0;
+        this.#thrusters[4].style.opacity = af > EPSILON ? 1 : 0;
+        this.#thrusters[5].style.opacity = af > EPSILON ? 1 : 0;
+        this.#thrusters[6].style.opacity = ac > EPSILON || aRot < 0 ? 1 : 0;
+        this.#thrusters[7].style.opacity = ac > EPSILON || aRot > 0 ? 1 : 0;*/
     }
 
     #simulateConstraints(t) {
@@ -861,9 +787,9 @@ class UI extends HTMLElement {
                 if (a === this.ship) {
                     if (
                         (
-                            collision.edge[0] === a.hitbox.vertices[3] &&
+                            collision.edge[0] === a.hitbox.vertices[5] &&
                             collision.edge[1] === a.hitbox.vertices[0]
-                        ) || collision.vertex === a.hitbox.vertices[3] ||
+                        ) || collision.vertex === a.hitbox.vertices[5] ||
                         collision.vertex === a.hitbox.vertices[0]
                     ) {
                         stickyedge = true;
@@ -973,116 +899,109 @@ class UI extends HTMLElement {
             }
         }
     }
+
+    #init() {
+        for (let part of Generator.generateShip(new DOMPoint(100, 20))) {
+            this.#entities.push(part)
+            this.canvas.querySelector(".entities").append(part.node);
+        }
+        this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
+        this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
+        this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
+    }
+
+    #createContainer(position) {
+        // https://en.wikipedia.org/wiki/Intermodal_container
+        const width = 6; // 12
+        const height = 2.5; // 16
+        const rect = SVG.makeRect(
+            new DOMPoint(-width / 2, -height / 2), width, height, {fill: "silver"}
+        );
+        const shape = Polygon.fromRect(-width / 2, -height / 2, width, height);
+        const container = new Entity(rect, shape, 1000); // 2.5 * 1000); // 1);
+        container.update(position, 0);
+        this.#entityLayer.append(rect);
+        this.#entities.push(container);
+        return container;
+    }
 }
 customElements.define("fleet-ui", UI);
 
-class Entity {
-    pos = new DOMPoint();
-    rot = 0;
-    velocity = new DOMPoint();
-    spin = 0;
-
-    mass;
-    inertia;
-    shape;
-    hitbox;
-    matrix;
-
-    node;
-    annotation;
-
-    constructor(node, shape, mass) {
-        this.node = node;
-        this.shape = shape;
-        this.mass = mass;
-        let r = Math.max(
-            Vector.abs(Vector.sub(shape.vertices[1], shape.vertices[0])),
-            Vector.abs(Vector.sub(shape.vertices[2], shape.vertices[1]))
-        ) / 2;
-        this.inertia = this.mass * r * r / 2;
-        //this.#updateHitbox();
-        this.update(new DOMPoint(), 0);
+export class Generator {
+    static generateShip(position) {
+        const cells = 20 + Math.floor(Math.random() * (10 + 1));
+        const modules = [];
+        modules.push(Generator.#generateShipDecks(cells));
+        modules.push(Generator.#generateShipDock(cells));
+        modules.push(Generator.#generateShipDecks(cells));
+        modules.push(Generator.#generateShipDecks(cells));
+        modules.push(Generator.#generateShipDecks(cells));
+        modules.push(Generator.#generateShipDock(cells));
+        modules.push(Generator.#generateShipDecks(cells));
+        let y = position.y;
+        for (let module of modules) {
+            const height = module.shape.bounds.height;
+            module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
+            y += height;
+        }
+        return modules;
     }
 
-    update(position, rotation) {
-        this.pos = position;
-        this.rot = rotation;
-        this.matrix = new DOMMatrix().translateSelf(this.pos.x, this.pos.y)
-            .rotateSelf(this.rot * 180 / Math.PI);
-        this.hitbox = this.shape.transform(this.matrix);
-    }
+    static #generateShipDecks(cells) {
+        // const decks = 20 + Math.floor(Math.random() * (10 + 1));
+        // const decks = 70 + Math.floor(Math.random() * (10 + 1));
+        // const decks = 4 + Math.floor(Math.random() * (4 + 1));
+        const decks = 12;
 
-    /*get pos() {
-        return this.#pos;
-    }
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
 
-    set pos(value) {
-        this.#pos = value;
-        // camera
-        //const pos = this.#pos.sub(this.node.parentElement.parentElement.ship.pos);
-        //this.node.style.transform = `translate(${pos.x}px, ${pos.y}px) rotate(${this.rot}rad)`;
-        // this.node.style.transform = `translate(${this.#pos.x}px, ${this.#pos.y}px) rotate(135deg)`;
-        // this.node.style.transform = `translate(${this._pos[0]}px, ${this._pos[1]}px) rotate(135deg)`;
-        //this.node.style.transform = `rotate(135deg)`;
-        //this.node.style.left = `${this._pos[0]}px`;
-        //this.node.style.top = `${this._pos[1]}px`;
-    }*/
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
+        g.append(rect);
 
-    getVelocityAt(p) {
-        return Vector.add(
-            this.velocity, Vector.mul(Vector.getNormal(Vector.sub(p, this.pos)), this.spin)
-        );
-    }
-
-    applyImpulse(j, p) {
-        const dv = Vector.mul(j, 1 / this.mass);
-        this.velocity = Vector.add(this.velocity, dv);
-        return dv;
-    }
-
-    collides(other) {
-        // https://developer.mozilla.org/en-US/docs/Games/Techniques/2D_collision_detection
-        // Separating axis theorem
-
-        const collision = {
-            a: null,
-            b: null,
-            edge: null,
-            vertex: null,
-            normal: null,
-            distance: -Infinity
-        };
-
-        for (let [a, b] of [[this, other], [other, this]]) {
-            for (let e of a.hitbox.edges) {
-                const axis = Vec.norm(Vec.getNormal(Vec.sub(e[1], e[0])));
-                const bound = Vec.dot(e[0], axis);
-
-                let minV = null;
-                let minDistance = Infinity;
-                for (let v of b.hitbox.vertices) {
-                    const distance = Vec.dot(v, axis) - bound;
-                    if (distance < minDistance) {
-                        minV = v;
-                        minDistance = distance;
-                    }
-                }
-
-                if (minDistance >= 0) {
-                    return null;
-                }
-                if (minDistance > collision.distance) {
-                    collision.a = a;
-                    collision.b = b;
-                    collision.edge = e;
-                    collision.vertex = minV;
-                    collision.normal = axis;
-                    collision.distance = minDistance;
-                }
+        const width = cells * 4 + 2;
+        const height = decks * 4 + 2;
+        const left = -width / 2;
+        const bottom = -height / 2;
+        rect.setAttribute("width", width);
+        rect.setAttribute("height", height);
+        rect.setAttribute("x", left);
+        rect.setAttribute("y", bottom);
+        /*rect.setAttribute("rx", 1);
+        rect.setAttribute("ry", 1);*/
+        rect.style.fill = "silver";
+        for (let y = 0; y < decks; y++) {
+            for (let x = 0; x < cells; x++) {
+                const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                w.setAttribute("width", 2);
+                w.setAttribute("height", 1);
+                w.setAttribute("x", left + 4 * x + 1 + 1);
+                w.setAttribute("y", bottom + 4 * y + 2 + 1);
+                /*w.setAttribute("rx", 0.25);
+                w.setAttribute("ry", 0.25);*/
+                w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
+                g.append(w);
             }
         }
 
-        return collision;
+        const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
+        //entity.update(new DOMPoint(100, 100), 0);
+        //entity.pos = new Vector(-left, 0);
+        // entity.v = new Vector(0, 10);
+        // entity.vRot = Math.PI / 8;
+        return entity;
+    }
+
+    static #generateShipDock(cells) {
+        const width = cells * 4 + 2;
+        const height = 2 * 4;
+        const left =-width / 2;
+        const bottom = -height / 2;
+        const g = SVG.make("g", {class: "ship-dock"});
+        const rect = SVG.make("rect", {fill: "silver", x: -width / 2, y: -height / 2, width, height});
+        const lockW = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
+        const lockE = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
+        g.append(rect, lockW, lockE);
+        return new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity);
     }
 }
 
