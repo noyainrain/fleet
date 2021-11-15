@@ -65,8 +65,128 @@ class SVG {
 
 const Vec = Vector;
 
+class Ship {
+    parts;
+    // docks;
+
+    constructor(parts) {
+        this.parts = parts;
+    }
+}
+
+class FleetGenerator {
+    generate() {
+        const decks = 70 + Math.floor(Math.random() * (10 + 1));
+
+        let quarters = [...new Array(3)].map(() => Math.random());
+        const total = sum(quarters);
+        quarters = quarters.map(share => Math.trunc(share / total * decks));
+        console.log("Q", quarters);
+        quarters[0] += decks - sum(quarters);
+        console.log("Q+R", quarters, decks);
+        quarters = quarters.map(q => ["quarters", q]);
+
+        const blueprint = shuffle(quarters);
+
+        return [this.#generateShip(blueprint, new DOMPoint(100, 20))];
+    }
+
+    #generateShip(blueprint, position) {
+        // {dock: Math.ceil(decks / 40)}
+        blueprint = [
+            ["engineStern", 4], shuffle([...blueprint, ["dock", 4], ["dock", 4]]), ["engineBow", 2]
+        ];
+        // Object.entries(blueprint).map((type, decks) => 
+
+        const cells = 20 + Math.floor(Math.random() * (10 + 1));
+
+        //const generate = {
+        //    quarters: this.#generateShipDecks,
+        //    engineStern: this.#generateEngineStern,
+        //    engineBow: this.#generateEngineBow,
+        //    dock: this.#generateShipDock
+        //};
+        //const modules = blueprint.map(([type, decks]) => generate[type](cells, decks));
+
+        const modules = [];
+        modules.push(this.#generateShipDecks(cells));
+        modules.push(this.#generateShipDock(cells));
+        modules.push(this.#generateShipDecks(cells));
+        modules.push(this.#generateShipDecks(cells));
+        modules.push(this.#generateShipDecks(cells));
+        modules.push(this.#generateShipDock(cells));
+        modules.push(this.#generateShipDecks(cells));
+        let y = position.y;
+        for (let module of modules) {
+            const height = module.shape.bounds.height;
+            module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
+            y += height;
+        }
+        console.log(modules);
+        return new Ship(modules);
+    }
+
+    #generateShipDecks(cells) {
+        // const decks = 20 + Math.floor(Math.random() * (10 + 1));
+        // const decks = 70 + Math.floor(Math.random() * (10 + 1));
+        // const decks = 4 + Math.floor(Math.random() * (4 + 1));
+        const decks = 12;
+
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
+        g.append(rect);
+
+        const width = cells * 4 + 2;
+        const height = decks * 4 + 2;
+        const left = -width / 2;
+        const bottom = -height / 2;
+        rect.setAttribute("width", width);
+        rect.setAttribute("height", height);
+        rect.setAttribute("x", left);
+        rect.setAttribute("y", bottom);
+        /*rect.setAttribute("rx", 1);
+        rect.setAttribute("ry", 1);*/
+        rect.style.fill = "silver";
+        for (let y = 0; y < decks; y++) {
+            for (let x = 0; x < cells; x++) {
+                const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                w.setAttribute("width", 2);
+                w.setAttribute("height", 1);
+                w.setAttribute("x", left + 4 * x + 1 + 1);
+                w.setAttribute("y", bottom + 4 * y + 2 + 1);
+                /*w.setAttribute("rx", 0.25);
+                w.setAttribute("ry", 0.25);*/
+                w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
+                g.append(w);
+            }
+        }
+
+        const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
+        //entity.update(new DOMPoint(100, 100), 0);
+        //entity.pos = new Vector(-left, 0);
+        // entity.v = new Vector(0, 10);
+        // entity.vRot = Math.PI / 8;
+        return entity;
+    }
+
+    #generateShipDock(cells) {
+        const width = cells * 4 + 2;
+        const height = 2 * 4;
+        const left =-width / 2;
+        const bottom = -height / 2;
+        const g = SVG.make("g", {class: "ship-dock"});
+        const rect = SVG.make("rect", {fill: "silver", x: -width / 2, y: -height / 2, width, height});
+        const lockW = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
+        const lockE = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
+        g.append(rect, lockW, lockE);
+        return new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity);
+    }
+}
+
 class UI extends HTMLElement {
     ship;
+    #fleet;
     #thrusters;
 
     t;
@@ -89,6 +209,8 @@ class UI extends HTMLElement {
     #abg = "- nothing";
     #calibration = null;
     paused = true;
+    #generator;
+    #zoom = true;
 
     //static ENGINE = 9.80665 * 5; // m / s2
     //static TARGET_VELOCITY = 150; // m / s ; reached in 3s
@@ -103,6 +225,8 @@ class UI extends HTMLElement {
 
     constructor() {
         super();
+
+        this.#generator = new FleetGenerator();
 
         document.addEventListener("keydown", event => {
             switch (event.key) {
@@ -122,6 +246,9 @@ class UI extends HTMLElement {
                     this.pause();
                 }
                 break;
+            case "m":
+                this.#zoom = !this.#zoom;
+                break;
             case "ArrowLeft":
             case "ArrowRight":
             case "ArrowUp":
@@ -139,6 +266,7 @@ class UI extends HTMLElement {
                     this.#joints.delete(this.ship.joint);
                     this.ship.joint = null;
                 }
+                break;
             }
         });
 
@@ -334,11 +462,31 @@ class UI extends HTMLElement {
             this.#computeCollisions(t);
         }
 
+        let camRot;
+        let camPos;
+        let camScale;
+        if (this.#zoom) {
+            const x = this.#fleet.map(
+                ship => ship.parts.map(part => part.hitbox.vertices.map(v => v.x))
+            ).flat(2);
+            const y = this.#fleet.map(
+                ship => ship.parts.map(part => part.hitbox.vertices.map(v => v.y))
+            ).flat(2);
+            const min = new DOMPoint(Math.min(...x), Math.min(...y));
+            const max = new DOMPoint(Math.max(...x), Math.max(...y));
+            const width = max.x - min.x;
+            const height = max.y - min.y;
+            camPos = new DOMPoint(min.x + width / 2, min.y + height / 2);
+            camRot = 0;
+            camScale = 75 / Math.max(width + 4 * 8, height + 4 * 8);
+            // return new DOMRect(min.x, min.y, max.x - min.x, max.y - min.y);
+        } else {
+
         // camera
         //const rot = entity.rot - this.ship.rot;
         // const camPos = new Vector();
         // const pos = entity.pos; // entity.pos.sub(this.ship.pos);
-        const camRot = this.#options.rotateCam ? this.ship.rot : 0;
+        camRot = this.#options.rotateCam ? this.ship.rot : 0;
         // const camRot = this.#options.rotateCam ? 0 : 0;
         // const minDist = 4 * 8;
         //const minDist = 4 * 8 + 8;
@@ -356,8 +504,10 @@ class UI extends HTMLElement {
 
         const v = Vector.abs(this.ship.velocity);
         const view = v * v / (2 * UI.ENGINE);
-        const camPos = Vector.add(this.ship.pos, v === 0 ? new DOMPoint() : Vector.mul(this.ship.velocity, view / 2 / v));
+        camPos = Vector.add(this.ship.pos, v === 0 ? new DOMPoint() : Vector.mul(this.ship.velocity, view / 2 / v));
         // const camPos = this.ship.pos;
+        camScale = 1;
+        }
 
         // v = a t
         //const maxBreak = UI.TARGET_VELOCITY * UI.TARGET_VELOCITY / (2 * UI.ENGINE);
@@ -368,7 +518,7 @@ class UI extends HTMLElement {
         this.querySelector("fleet-ui > svg > g").style.transform =
             // `scale(${s}, -${s}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
             // `scale(0.25) scaleY(-1) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
-            `scaleY(-1) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
+            `scale(${camScale}, -${camScale}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
 
         for (let entity of this.#entities) {
             // const pos = entity.pos.sub(this.ship.pos);
@@ -901,9 +1051,12 @@ class UI extends HTMLElement {
     }
 
     #init() {
-        for (let part of Generator.generateShip(new DOMPoint(100, 20))) {
-            this.#entities.push(part)
-            this.canvas.querySelector(".entities").append(part.node);
+        this.#fleet = this.#generator.generate();
+        for (let ship of this.#fleet) {
+            for (let part of ship.parts) {
+                this.#entities.push(part)
+                this.canvas.querySelector(".entities").append(part.node);
+            }
         }
         this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
         this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
@@ -927,82 +1080,14 @@ class UI extends HTMLElement {
 }
 customElements.define("fleet-ui", UI);
 
-export class Generator {
-    static generateShip(position) {
-        const cells = 20 + Math.floor(Math.random() * (10 + 1));
-        const modules = [];
-        modules.push(Generator.#generateShipDecks(cells));
-        modules.push(Generator.#generateShipDock(cells));
-        modules.push(Generator.#generateShipDecks(cells));
-        modules.push(Generator.#generateShipDecks(cells));
-        modules.push(Generator.#generateShipDecks(cells));
-        modules.push(Generator.#generateShipDock(cells));
-        modules.push(Generator.#generateShipDecks(cells));
-        let y = position.y;
-        for (let module of modules) {
-            const height = module.shape.bounds.height;
-            module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
-            y += height;
-        }
-        return modules;
-    }
+function shuffle(array) {
+    return array.map(item => [item, Math.random()])
+        .sort((a, b) => b[1] - a[1])
+        .map(item => item[0]);
+}
 
-    static #generateShipDecks(cells) {
-        // const decks = 20 + Math.floor(Math.random() * (10 + 1));
-        // const decks = 70 + Math.floor(Math.random() * (10 + 1));
-        // const decks = 4 + Math.floor(Math.random() * (4 + 1));
-        const decks = 12;
-
-        const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
-
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
-        g.append(rect);
-
-        const width = cells * 4 + 2;
-        const height = decks * 4 + 2;
-        const left = -width / 2;
-        const bottom = -height / 2;
-        rect.setAttribute("width", width);
-        rect.setAttribute("height", height);
-        rect.setAttribute("x", left);
-        rect.setAttribute("y", bottom);
-        /*rect.setAttribute("rx", 1);
-        rect.setAttribute("ry", 1);*/
-        rect.style.fill = "silver";
-        for (let y = 0; y < decks; y++) {
-            for (let x = 0; x < cells; x++) {
-                const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                w.setAttribute("width", 2);
-                w.setAttribute("height", 1);
-                w.setAttribute("x", left + 4 * x + 1 + 1);
-                w.setAttribute("y", bottom + 4 * y + 2 + 1);
-                /*w.setAttribute("rx", 0.25);
-                w.setAttribute("ry", 0.25);*/
-                w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
-                g.append(w);
-            }
-        }
-
-        const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
-        //entity.update(new DOMPoint(100, 100), 0);
-        //entity.pos = new Vector(-left, 0);
-        // entity.v = new Vector(0, 10);
-        // entity.vRot = Math.PI / 8;
-        return entity;
-    }
-
-    static #generateShipDock(cells) {
-        const width = cells * 4 + 2;
-        const height = 2 * 4;
-        const left =-width / 2;
-        const bottom = -height / 2;
-        const g = SVG.make("g", {class: "ship-dock"});
-        const rect = SVG.make("rect", {fill: "silver", x: -width / 2, y: -height / 2, width, height});
-        const lockW = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
-        const lockE = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
-        g.append(rect, lockW, lockE);
-        return new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity);
-    }
+function sum(array) {
+    return array.reduce((previousValue, currentValue) => previousValue + currentValue);
 }
 
 class Joint {

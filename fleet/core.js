@@ -171,10 +171,12 @@ export class Polygon {
     }
 
     get bounds() {
-        const minX = Math.min(...this.vertices.map(v => v.x));
-        const minY = Math.min(...this.vertices.map(v => v.y));
-        const maxX = Math.max(...this.vertices.map(v => v.x));
-        const maxY = Math.max(...this.vertices.map(v => v.y));
+        const xs = this.vertices.map(v => v.x);
+        const ys = this.vertices.map(v => v.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
         return new DOMRect(minX, minY, maxX - minX, maxY - minY);
     }
 
