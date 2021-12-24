@@ -1,6 +1,13 @@
+addEventListener("error", event => {
+    const e = event.error;
+    document.body.textContent = `${e.constructor?.name}: ${e.message}\n${e.stack}`;
+    document.body.style.whiteSpace = "pre";
+});
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-import {Entity, Polygon, Vector} from "./fleet/core.js";
+import {Entity, Polygon, Vector} from "./fleet/core.js?lxol";
+import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
 
 /*class Vector {
     x;
@@ -66,11 +73,284 @@ class SVG {
 const Vec = Vector;
 
 class Ship {
-    parts;
+    static MODULE_WIDTH = 40;
+    static MODULE_HEIGHT = 20;
+    static BLEED = 0.1;
+    static UNIT = 4;
+
+    name;
+    color;
+    modules = [];
+    // parts;
     // docks;
 
-    constructor(parts) {
+    constructor(name, color) {
+        this.name = name;
+        this.color = color;
+        // XXX
+        // this.parts = this.modules.flat(2);
+    }
+
+    get parts() {
+        return this.modules.map(row => row.map(module => module.parts)).flat(2);
+    }
+
+    tick(game) {
+        for (let row of this.modules) {
+            for (let module of row) {
+                if (module instanceof Dock) {
+                    module.tick(game);
+                }
+            }
+        }
+
+    }
+}
+
+class Module {
+    type;
+    parts;
+    ship;
+
+    constructor(type, parts, ship) {
+        this.type = type;
         this.parts = parts;
+        this.ship = ship;
+    }
+}
+
+class Dock extends Module {
+    id;
+    state;
+    #hot;
+
+    constructor(parts, ship, id, hot) {
+        super("dock", parts, ship);
+        this.id = id;
+        this.state = "arrival";
+        this.#hot = hot;
+    }
+
+    tick(game) {
+        switch (this.state) {
+        case "arrival":
+            // TODO not every frame
+            const hot = this.#hot.transform(this.parts[0].matrix);
+            if (
+                (!game.shuttle.cargo || game.shuttle.cargo.dock === this) &&
+                game.shuttle.links.size >= 2 &&
+                [...game.shuttle.links].every(
+                    link => hot.contains(link.entityA.matrix.transformPoint(link.anchorA))
+                )
+            ) {
+                let cargo;
+                if (game.shuttle.cargo?.dock === this) {
+                    // pass
+                } else {
+                    function getModuleCoords(module) {
+                        const ship = module.ship;
+                        for (let y = 0; y < ship.modules.length; y++) {
+                            for (let x = 0; x < ship.modules[y].length; x++) {
+                                if (module === ship.modules[y][x]) {
+                                    return [x, y];
+                                }
+                            }
+                        }
+                        return undefined;
+                    }
+
+                    function findNearestDock(module) {
+                        const ship = module.ship;
+                        const coords = getModuleCoords(module);
+                        const queue = [coords];
+                        const visited = new Set();
+                        while (queue.length) {
+                            const [x, y] = queue.shift();
+                            if (
+                                !(x >= 0 && x < ship.modules[0].length && y >= 0 && y < ship.modules.length) ||
+                                visited.has([x, y].toString())
+                            ) {
+                                continue;
+                            }
+                            visited.add([x, y].toString());
+                            const module = ship.modules[y][x];
+                            if (module.type === "dock") {
+                                return module;
+                            }
+                            queue.push(
+                                [x - 1, y - 1], [x, y - 1], [x + 1, y - 1], [x - 1, y], [x + 1, y],
+                                [x - 1, y + 1], [x, y + 1], [x + 1, y + 1]
+                            );
+                        }
+                        throw new Error();
+                    }
+
+                    // const ship = game.fleet[Math.trunc(Math.random() * game.fleet.length)];
+                    //const x = Math.trunc(Math.random() * ship.modules[0].length);
+                    //const y = Math.trunc(Math.random() * ship.modules.length);
+                    // const modules = ship.modules.flat();
+                    const modules = game.fleet.map(ship => ship.modules).flat(2);
+                    let module = null;
+                    let dock = this;
+                    while (dock === this) {
+                        console.log("FIND DOCK");
+                        module = modules[Math.trunc(Math.random() * modules.length)];
+                        dock = findNearestDock(module);
+                    }
+
+                    const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
+                    cargo = new Cargo(name, module, dock);
+                }
+
+                //game.querySelector(".cargo").textContent =
+                //    cargo.destination.type === "dock" ?
+                //    `Passenger to ${cargo.ship.name}, dock ${cargo.dock.id}` :
+                //    `Passenger to ${cargo.destination.type} on ${cargo.ship.name}, dock ${cargo.dock.id}`;
+
+                this.state = "docking";
+                (async () => {
+                    await game.shuttle.dock(cargo);
+                    this.state = "departure";
+                })();
+            }
+            break;
+
+        case "docking":
+            break;
+
+        case "departure":
+            if (game.shuttle.links.size === 0) {
+                this.state = "arrival";
+            }
+            break;
+
+        default:
+            throw new Error();
+        }
+    }
+}
+
+class Shuttle {
+    body;
+    game;
+    links = new Set();
+    cargo = null;
+
+    constructor(body, game) {
+        this.body = body;
+        this.game = game;
+    }
+
+    async dock(cargo = null) {
+        const bar = this.game.querySelector(".docking rect");
+        this.game.classList.add("shuttle-docking");
+        await new Promise(resolve => setTimeout(resolve, 0));
+        bar.style.width = "100%";
+        await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
+        bar.style.width = "0%";
+        this.game.classList.remove("shuttle-docking");
+
+        this.cargo = cargo;
+        const p = this.game.querySelector(".cargo");
+        if (cargo) {
+            const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
+            p.textContent =
+                cargo.destination.type === "dock" ?
+                //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+                //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+                `Crewmember ${cargo.name}\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+                `Crewmember ${cargo.name}\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+            this.message(
+                cargo.name,
+                `Hi! To the ${cargo.destination.type} on the ${cargo.destination.ship.name}, please!`
+            );
+        } else {
+            p.textContent = "";
+            this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
+        }
+
+        /*await new Promise(resolve => setTimeout(resolve, 0));
+        this.game.classList.add("shuttle-undocking");
+        bar.style.width = "100%";
+        await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
+        this.game.releaseShuttleLink();
+        bar.style.width = "0%";
+        this.game.classList.remove("shuttle-undocking");*/
+    }
+
+    async message(from, text) {
+        const p = this.game.querySelector(".dialog");
+        text = `${from}: ${text}`;
+        p.textContent = text;
+        const words = text.split(/\s+/u).length;
+        await new Promise(resolve => setTimeout(resolve, words * 60 / 120 * 1000));
+        p.style.opacity = "0%";
+        await new Promise(resolve => p.addEventListener("transitionend", resolve, {once: true}));
+        p.style.opacity = "100%";
+        p.textContent = "";
+    }
+}
+
+class Cargo {
+    name;
+    destination;
+    dock;
+
+    constructor(name, destination, dock) {
+        this.name = name;
+        this.destination = destination;
+        this.dock = dock;
+    }
+}
+
+class Roulette {
+    pockets;
+    #total;
+
+    constructor(pockets) {
+        this.pockets = pockets;
+        console.log("POCKETVALS", Array.from(this.pockets.values()));
+        this.#total = sum(Array.from(this.pockets.values()));
+    }
+
+    spin() {
+        const draw = Math.random() * this.#total;
+        //console.log("SPIN", draw, this.#total);
+        let curP = 0;
+        for (let [item, p] of this.pockets.entries()) {
+            curP += p;
+            if (draw < curP) {
+                return item;
+            }
+        }
+    }
+}
+
+function distribute(items, bins, {capacity = Infinity, draw = null} = {}) {
+    if (!draw) {
+        draw = () => Math.trunc(Math.random() * bins.length);
+    }
+    if (capacity * bins.length - sum(bins.map(bin => bin.length)) < items.length) {
+        throw new Error("NOT ENOUGH SPACE");
+    }
+    for (let item of shuffle(items)) {
+        while (true) {
+            const i = draw();
+            if (i < 0 || i >= bins.length) {
+                throw new RangeError("!!!");
+            }
+            // console.log("BIN I", i, bins[i].length);
+            if (bins[i].length >= capacity) {
+                continue;
+            }
+            bins[i].push(item);
+            break;
+        }
+        // let k;
+        // for (k = 0; k < 10; k++) {
+        //if (k === 10) {
+        //    throw new Error("ENDLESS LOOP");
+        //}
     }
 }
 
@@ -78,115 +358,399 @@ class FleetGenerator {
     generate() {
         const decks = 70 + Math.floor(Math.random() * (10 + 1));
 
-        let quarters = [...new Array(3)].map(() => Math.random());
-        const total = sum(quarters);
-        quarters = quarters.map(share => Math.trunc(share / total * decks));
-        console.log("Q", quarters);
-        quarters[0] += decks - sum(quarters);
-        console.log("Q+R", quarters, decks);
-        quarters = quarters.map(q => ["quarters", q]);
+        //const tr = new Roulette(new Map([["a", 5], ["b", 2], ["c", 3]]));
+        //const counts = new Map();
+        //for (let i = 0; i < 10000; i++) {
+        //    const item = tr.spin();
+        //    counts.set(item, (counts.get(item) ?? 0) + 1);
+        //}
+        //console.log("ROULETTE AFTER 10k SPINS", counts);
 
-        const blueprint = shuffle(quarters);
+        //const bins = [...new Array(3)].map(() => []);
+        //const roulette = new Roulette(new Map([[0, 6], [1, 3], [2, 1]]));
+        //const items = new Array(10000).fill("test");
+        //distribute(items, bins, {capacity: 5000, draw: () => roulette.spin()});
+        //console.log("DISTRIBUTED", bins[0], bins[1], bins[2]);
 
-        return [this.#generateShip(blueprint, new DOMPoint(100, 20))];
+        // 2 - 4
+        // 2 * (16 - 4)
+        // min: 4 * (13 + 3) = 52 / 12
+        // max: 4 * (12 + 4) = 48 / 16
+
+        // const CAPACITY = 16 - 4;
+        // const BLOCKS = 2 * CAPACITY;
+        const CAPACITY = 32 - 8; // max capacity of ship (8 blocks local)
+        const BLOCKS = CAPACITY + (8 - 3); // max capacity of small ship (3 blocks local)
+
+        let ships = [... new Array(2)].map(() => []);
+        const indexBySize = new Roulette(
+            new Map(Object.keys(ships).map(i => [parseInt(i), Math.random()]))
+        );
+        const blocks = new Array(BLOCKS).fill("quarters");
+        // distribute(blocks, ships, {capacity: 2 * CAPACITY, draw: () => indexBySize.spin()});
+        distribute(blocks, ships, {capacity: CAPACITY, draw: () => indexBySize.spin()});
+        console.log("DISTRIBUTED", ships[0], ships[1]);
+
+        //let quarters = [...new Array(3)].map(() => Math.random());
+        //const total = sum(quarters);
+        //quarters = quarters.map(share => Math.trunc(share / total * decks));
+        //console.log("Q", quarters);
+        //quarters[0] += decks - sum(quarters);
+        //console.log("Q+R", quarters, decks);
+        //quarters = quarters.map(q => ["quarters", q]);
+        //const blueprint = shuffle(quarters);
+        // return [this.#generateShip(blueprint, new DOMPoint(100, 20))];
+
+        ships = ships.map(ship => this.#generateShip(ship));
+        const span =
+            sum(ships.map(ship => ship.modules[0].length * Ship.MODULE_WIDTH)) +
+            (ships.length - 1) * 2 * Ship.MODULE_WIDTH;
+        let x = -span / 2;
+        for (let ship of ships) {
+            const pos = x + ship.modules[0].length * Ship.MODULE_WIDTH / 2;
+            for (let row of ship.modules) {
+                for (let module of row) {
+                    for (let part of module.parts) {
+                        part.update(Vector.add(part.pos, new DOMPoint(pos, 0)), 0);
+                    }
+                }
+            }
+            x += (ship.modules[0].length + 2) * Ship.MODULE_WIDTH;
+        }
+        return ships;
     }
 
-    #generateShip(blueprint, position) {
+    #generateShip(blueprint) {
+        // one dock every 8 blocks, last one optional
+        const docks =
+            Math.min(Math.ceil(blueprint.length / 7), 3) +
+            (blueprint.length > 21 ? Math.trunc(Math.random() * 2) : 0);
+        blueprint = [...blueprint, ...new Array(docks).fill("dock")];
+        if (blueprint.length % 2 !== 0) {
+            blueprint.push("quarters");
+        }
+        blueprint = shuffle(blueprint);
+
+        const step = (blueprint.length + 2) > 8 ? 2 : 1;
+        blueprint.unshift(...new Array(step).fill("engineBow"));
+        blueprint.push(... new Array(step).fill("engineStern"));
+
+        console.log("BLUEPRINT", blueprint);
+
+        const generate = {
+            quarters: (...args) => this.#generateShipDecks(...args),
+            engineStern: (...args) => this.#generateEngineStern(...args),
+            engineBow: (...args) => this.#generateEngineBow(...args),
+            dock: (...args) => this.#generateShipDock(...args)
+        };
+
+
+        const color = `hsl(${Math.trunc(Math.random() * 360)}, 50%, 50%)`;
+        // const name = "Camelopardalis";
+        // const name = "Aquarius";
+        const name = SHIP_NAMES[Math.trunc(Math.random() * SHIP_NAMES.length)];
+        const ship = new Ship(name, color);
+
+        // const step = blueprint.length > 16 ? 2 : 1;
+        const width = step * Ship.MODULE_WIDTH;
+        const height = blueprint.length / 2 * Ship.MODULE_HEIGHT;
+        for (let y = 0; y < blueprint.length / step; y++) {
+            const row = [];
+            ship.modules.push(row);
+            for (let x = 0; x < step; x++) {
+                const i = y * step + x;
+                const module = generate[blueprint[i]](x === 0, x === step - 1, ship); // (step === 1 ? Math.trunc(Math.random() * 2) : x);
+                for (let part of module.parts) {
+                    const pos = new DOMPoint(
+                        // x * Ship.MODULE_WIDTH - width / 2, y * Ship.MODULE_HEIGHT - height / 2
+                        x * Ship.MODULE_WIDTH - width / 2, height / 2 - y * Ship.MODULE_HEIGHT
+                    );
+                    part.update(Vector.add(part.pos, pos), 0);
+                }
+                row.push(module);
+            }
+        }
+        return ship;
+
         // {dock: Math.ceil(decks / 40)}
-        blueprint = [
-            ["engineStern", 4], shuffle([...blueprint, ["dock", 4], ["dock", 4]]), ["engineBow", 2]
-        ];
+        //blueprint = [
+        //    ["engineStern", 4], shuffle([...blueprint, ["dock", 4], ["dock", 4]]), ["engineBow", 2]
+        //];
         // Object.entries(blueprint).map((type, decks) => 
 
-        const cells = 20 + Math.floor(Math.random() * (10 + 1));
+        //const cells = 20 + Math.floor(Math.random() * (10 + 1));
 
-        //const generate = {
-        //    quarters: this.#generateShipDecks,
-        //    engineStern: this.#generateEngineStern,
-        //    engineBow: this.#generateEngineBow,
-        //    dock: this.#generateShipDock
-        //};
         //const modules = blueprint.map(([type, decks]) => generate[type](cells, decks));
 
-        const modules = [];
-        modules.push(this.#generateShipDecks(cells));
-        modules.push(this.#generateShipDock(cells));
-        modules.push(this.#generateShipDecks(cells));
-        modules.push(this.#generateShipDecks(cells));
-        modules.push(this.#generateShipDecks(cells));
-        modules.push(this.#generateShipDock(cells));
-        modules.push(this.#generateShipDecks(cells));
-        let y = position.y;
-        for (let module of modules) {
-            const height = module.shape.bounds.height;
-            module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
-            y += height;
-        }
-        console.log(modules);
-        return new Ship(modules);
+        //const xmodules = [];
+        //xmodules.push(this.#generateShipDecks(cells));
+        //xmodules.push(this.#generateShipDock(cells));
+        //xmodules.push(this.#generateShipDecks(cells));
+        //xmodules.push(this.#generateShipDecks(cells));
+        //xmodules.push(this.#generateShipDecks(cells));
+        //xmodules.push(this.#generateShipDock(cells));
+        //xmodules.push(this.#generateShipDecks(cells));
+        //let y = position.y;
+        //for (let module of xmodules) {
+        //    const height = module.shape.bounds.height;
+        //    module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
+        //    y += height;
+        //}
+        //console.log(xmodules);
+        //return new Ship(xmodules);
     }
 
-    #generateShipDecks(cells) {
+    #generateShipDecks(port, starboard, ship) {
+        const cells = 10;
         // const decks = 20 + Math.floor(Math.random() * (10 + 1));
         // const decks = 70 + Math.floor(Math.random() * (10 + 1));
         // const decks = 4 + Math.floor(Math.random() * (4 + 1));
-        const decks = 12;
+        // const decks = 12;
+        const decks = 5;
 
-        const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
+        // const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
+        const g = SVG.make("g", {class: "ship-quarters"});
 
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
         g.append(rect);
 
-        const width = cells * 4 + 2;
-        const height = decks * 4 + 2;
+        const width = cells * 4; // + 2;
+        const height = decks * 4; // + 2;
         const left = -width / 2;
         const bottom = -height / 2;
-        rect.setAttribute("width", width);
-        rect.setAttribute("height", height);
-        rect.setAttribute("x", left);
-        rect.setAttribute("y", bottom);
+        rect.setAttribute("width", width + 0.2);
+        rect.setAttribute("height", height + 0.2);
+        rect.setAttribute("x", left - 0.1);
+        rect.setAttribute("y", bottom - 0.1);
         /*rect.setAttribute("rx", 1);
         rect.setAttribute("ry", 1);*/
-        rect.style.fill = "silver";
-        for (let y = 0; y < decks; y++) {
+        //rect.style.fill = "silver";
+        const skip = Math.floor(Math.random() * cells);
+        g.append(this.#generatePortholes(new DOMPoint(left, bottom), cells, decks, {skip}));
+        /*for (let y = 0; y < decks; y++) {
             for (let x = 0; x < cells; x++) {
-                const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                w.setAttribute("width", 2);
-                w.setAttribute("height", 1);
-                w.setAttribute("x", left + 4 * x + 1 + 1);
-                w.setAttribute("y", bottom + 4 * y + 2 + 1);
-                /*w.setAttribute("rx", 0.25);
-                w.setAttribute("ry", 0.25);*/
-                w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
-                g.append(w);
+                if (x === skip) {
+                    continue;
+                }
+                //const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                //w.setAttribute("width", 1);
+                //w.setAttribute("height", 2);
+                //w.setAttribute("x", left + 4 * x + 1);
+                //w.setAttribute("y", bottom + 4 * y + 1);
+                // const on = Math.random() <= 2 / 3 ? "ship-window-on" : "";
+                const on = Math.random() <= 0.5 ? "ship-window-on" : "";
+                //g.append(
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1}),
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 2.25, y: bottom + 4 * y + 1})
+                //);
+                //g.append(
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5}),
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 2.5, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
+                //);
+                //g.append(
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 2, height: 1, x: left + 4 * x + 1, y: bottom + 4 * y + 1.5, rx: 0.25, ry: 0.25})
+                //);
+                g.append(
+                    SVG.make("rect", {class: `ship-window ${on}`, width: 2, height: 1.5, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.25, ry: 0.25})
+                );
+                //g.append(
+                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 2 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
+                //);
+                //w.setAttribute("width", 2);
+                //w.setAttribute("height", 1);
+                //w.setAttribute("x", left + 4 * x + 1);
+                //w.setAttribute("y", bottom + 4 * y + 1.5);
+                //w.setAttribute("rx", 0.25);
+                //w.setAttribute("ry", 0.25);
+                //w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
+                //g.append(w);
             }
-        }
+        }*/
 
         const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
         //entity.update(new DOMPoint(100, 100), 0);
         //entity.pos = new Vector(-left, 0);
         // entity.v = new Vector(0, 10);
         // entity.vRot = Math.PI / 8;
-        return entity;
+        return new Module("quarters", [entity], ship);
     }
 
-    #generateShipDock(cells) {
-        const width = cells * 4 + 2;
-        const height = 2 * 4;
-        const left =-width / 2;
+    #generateShipDock(port, starboard, ship) {
+        const cells = 10;
+        const width = cells * 4 + 0.2; // + 2;
+        // const height = 2 * 4;
+        const height = Ship.MODULE_HEIGHT + 0.2;
+        const left = -width / 2;
         const bottom = -height / 2;
         const g = SVG.make("g", {class: "ship-dock"});
-        const rect = SVG.make("rect", {fill: "silver", x: -width / 2, y: -height / 2, width, height});
-        const lockW = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
-        const lockE = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
-        g.append(rect, lockW, lockE);
-        return new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity);
+        const rect = SVG.make("rect", {fill: "#ccc", x: -width / 2, y: -height / 2, width, height});
+        let lock;
+        const text = SVG.make("text", {fill: ship.color});
+        const id = String.fromCharCode(
+            "A".charCodeAt(0) + ship.modules.flat().filter(module => module.type === "dock").length
+        );
+        // const id = ["A", "B", "C", "D"][Math.trunc(Math.random() * 4)];
+        text.textContent = id;
+        let hot;
+        if (port) {
+            hot = Polygon.fromRect(left - 1, bottom + 1.5, 1, 5);
+            lock = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
+            text.style.transform = `translate(${left + 1}px, ${bottom + 4}px) rotate(-90deg) scaleY(-1)`;
+        } else {
+            hot = Polygon.fromRect(left + width, bottom + 1.5, 1, 5);
+            lock = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
+            text.style.transform = `translate(${left + width - 1}px, ${bottom + 4}px) rotate(90deg) scaleY(-1)`;
+        }
+        g.append(rect, lock, text);
+        return new Dock(
+            [new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity)],
+            ship, id, hot
+        );
+    }
+
+    #generateEngineBow(port, starboard, context) {
+        console.log("PORT", port, starboard);
+        const width = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
+        const height = 16 + 2 * Ship.BLEED;
+        const l = -Ship.MODULE_WIDTH / 2 - Ship.BLEED;
+        const b = -Ship.MODULE_HEIGHT / 2 - Ship.BLEED;
+        const leftCorner = port ?
+            `L ${l} ${b + height - 1} A 1 1 0 0 0 ${l + 1} ${b + height}` : `L ${l} ${b + height}`;
+        const rightCorner = starboard ?
+            `L ${l + width - 1} ${b + height} A 1 1 0 0 0 ${l + width} ${b + height - 1}` :
+            `L ${l + width} ${b + height}`;
+        const g = SVG.make("g", {class: "ship-bow"});
+        g.append(
+            SVG.make(
+                "rect",
+                {
+                    class: "ship-body",
+                    x: l,
+                    y: b,
+                    width,
+                    height: 8 + 2 * Ship.BLEED
+                    // d: `M ${l} ${b} L ${l} ${rightCorner} L ${l + width} ${b} Z`
+                }
+            ),
+            SVG.make(
+                "path",
+                {
+                    class: "ship-engine-bow",
+                    d: `M ${l} ${b + 8} ${leftCorner} ${rightCorner} L ${l + width} ${b + 8} Z`
+                }
+            )
+        );
+
+        // TODO longer names, different names
+        // TODO ABC for docks
+        //   TODO bold or heavy? (also for logo)
+
+        // TODO for broad ship text next to bridge?
+
+        // XXX should be property
+        let text = SVG.make("text", {x: l + 20, y: -(b + 1), fill: context.color});
+        text.textContent = context.name.toUpperCase();
+        g.append(text);
+        /*text = SVG.make("text", {x: l + 20, y: -(b + 1 + 2), fill: ship.color});
+        text.textContent = "AQUARIUS";
+        g.append(text);*/
+                //this.#generatePortholes(new DOMPoint(l, b + 4), 2, 1, {light: 1}),
+                //this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
+                //this.#generatePortholes(new DOMPoint(l + width - 8, b + 4), 2, 1, {light: 1})
+        if (port && starboard) {
+            g.append(
+                this.#generatePortholes(new DOMPoint(l + 8, b + 4), 1, 1, {light: 1}),
+                this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
+                this.#generatePortholes(new DOMPoint(l + 28, b + 4), 1, 1, {light: 1})
+            );
+        } else {
+            g.append(
+                this.#generatePortholes(new DOMPoint(port ? l + 20: l + 16, b + 4), 1, 1, {light: 1}),
+                this.#generatePortholes(new DOMPoint(port ? l + 24: l, b + 4), 1, 1, {width: 14, light: 1}),
+            );
+        }
+        // TODO better hitbox
+        return new Module(
+            "bridge", [new Entity(g, Polygon.fromRect(l, b, width, height), Infinity)], context
+        );
+    }
+
+    #generateEngineStern(port, starboard, ship) {
+        // TODO: gradient
+        // TODO: slimmer design
+        const parts = [];
+        function generateThruster() {
+            return new Entity(
+                SVG.make(
+                    "path",
+                    // {class: "ship-engine-bow", d: "M -4 -10 L -4 8 A 4 2 0 0 0 4 8 L 4 -10 Z"}
+                    {class: "ship-engine-bow", d: "M -10 -10 L -10 8 A 4 2 0 0 0 -6 10 L 6 10 A 4 2 0 0 0 10 8 L 10 -10 Z"}
+                ),
+                Polygon.fromRect(-4, -10, 8, 20), Infinity
+            );
+        }
+        const w = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
+        const h = 4 * Ship.UNIT + 2 * Ship.BLEED;
+        const rect = SVG.make(
+            "rect",
+            {
+                class: "ship-engine-bow",
+                /*x: -Ship.MODULE_WIDTH / 2 - Ship.BLEED,
+                y: -Ship.MODULE_HEIGHT / 2 - Ship.BLEED + Ship.UNIT,
+                width: Ship.MODULE_WIDTH + 2 * Ship.BLEED,
+                height: 4 * Ship.UNIT + 2 * Ship.BLEED,*/
+                x: -20.1,
+                y: -6.1,
+                width: 40.2,
+                height: 16.2
+            }
+        );
+        parts.push(new Entity(rect, Polygon.fromRect(-20, -6, 40, 16), Infinity));
+        if (port) {
+            const thruster = generateThruster();
+            thruster.update(new DOMPoint(-14, 0), 0);
+            parts.push(thruster);
+        }
+        if (starboard) {
+            const thruster = generateThruster();
+            thruster.update(new DOMPoint(14, 0), 0);
+            parts.push(thruster);
+        }
+        return new Module("engine", parts, ship);
+    }
+
+    #generatePortholes(p, columns, rows, {width = 2, light = 0.5, skip = -1} = {}) {
+        const fragment = document.createDocumentFragment();
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < columns; x++) {
+                if (x === skip) {
+                    continue;
+                }
+                const on = Math.random() <= light ? "ship-window-on" : "";
+                fragment.append(
+                    SVG.make(
+                        "rect",
+                        {
+                            class: `ship-window ${on}`,
+                            width,
+                            height: 1.5,
+                            x: p.x + 4 * x + 1,
+                            y: p.y + 4 * y + 1,
+                            rx: 0.25,
+                            ry: 0.25
+                        }
+                    )
+                );
+            }
+        }
+        return fragment;
     }
 }
 
 class UI extends HTMLElement {
     ship;
-    #fleet;
+    fleet;
+    #docks;
     #thrusters;
 
     t;
@@ -199,6 +763,7 @@ class UI extends HTMLElement {
 
     #options = {rotateCam: true, debug: false, cruise: true};
     #info;
+    #stars;
 
     #second;
     #frames = 0;
@@ -210,7 +775,7 @@ class UI extends HTMLElement {
     #calibration = null;
     paused = true;
     #generator;
-    #zoom = true;
+    #zoom = false;
 
     //static ENGINE = 9.80665 * 5; // m / s2
     //static TARGET_VELOCITY = 150; // m / s ; reached in 3s
@@ -258,14 +823,7 @@ class UI extends HTMLElement {
                 }
                 break;
             case "Shift":
-                if (this.ship.joint) {
-                    // XXX copypasta
-                    if (this.#options.debug) {
-                        this.#annotations.get(this.ship.joint).remove();
-                    }
-                    this.#joints.delete(this.ship.joint);
-                    this.ship.joint = null;
-                }
+                this.releaseShuttleLink();
                 break;
             }
         });
@@ -338,6 +896,7 @@ class UI extends HTMLElement {
 
         const checkOrientation = () => {
             this.classList.toggle("fleet-orientation", innerWidth < innerHeight);
+            this.#generateStars();
         }
         checkOrientation();
         addEventListener("resize", checkOrientation);
@@ -345,6 +904,7 @@ class UI extends HTMLElement {
 
     play() {
         this.classList.remove("paused");
+        this.classList.remove("opening");
         this.#calibration = null;
         this.paused = false;
     }
@@ -354,11 +914,29 @@ class UI extends HTMLElement {
         this.paused = true;
     }
 
+    releaseShuttleLink() {
+        if (this.shuttle.links.size) {
+            for (let joint of this.shuttle.links) {
+                this.#joints.delete(joint);
+                if (this.#options.debug) {
+                    this.#annotations.get(joint).remove();
+                }
+            }
+            this.shuttle.links.clear();
+            this.classList.remove("shuttle-linked");
+        }
+    }
+
     connectedCallback() {
         setTimeout(() => {
             this.querySelector(".play").addEventListener("click", async () => {
                 await document.body.requestFullscreen();
-                this.play();
+                // this.play();
+            });
+
+            this.querySelector(".release").addEventListener("click", event => {
+                this.releaseShuttleLink();
+                event.stopPropagation();
             });
 
             this.addEventListener("click", () => {
@@ -369,7 +947,7 @@ class UI extends HTMLElement {
                 }
             });
 
-            this.canvas = this.querySelector("g");
+            this.canvas = this.querySelector(".canvas g");
             this.#entityLayer = this.canvas.querySelector(".entities");
             this.#annotationLayer = this.querySelector(".annotations");
             this.#entities = Array.from(
@@ -389,8 +967,9 @@ class UI extends HTMLElement {
                 }
             );
             //this.#entities[0].pos = new Vector(100, 200);
-            this.#info = this.querySelector(".info");
+            this.#info = this.querySelector(".info .content");
             this.ship = this.#entities[this.#entities.length - 1];
+            this.shuttle = new Shuttle(this.ship, this);
             this.#thrusters = this.ship.node.querySelectorAll(".thruster");
 
             this.#init();
@@ -398,10 +977,34 @@ class UI extends HTMLElement {
             this.#second = this.t;
             requestAnimationFrame(() => this.step());
             //this.play();
+
+            /*
+            // colortest
+            this.canvas.append(
+                SVG.make("rect", {x: "-60", y: "-20", width: "110", height: "60", fill: "#fff"}),
+                SVG.make("rect", {x: "-20", y: "-20", width: "110", height: "60", fill: "#808080"}),
+                SVG.make("rect", {x: "20", y: "-20", width: "110", height: "60", fill: "#000"})
+            );
+            for (let i = 0; i < 16; i++) {
+                for (let x = 0; x < 11; x++) {
+                    const text = SVG.make("text", {x: -59 + x * 10, y: 19 - i * 3});
+                    // ccc 80%, 666 40%
+                    text.style.fill = `hsl(${360 / 16 * i}, 50%, 50%)`;
+                    // text.style.fill = `hsl(${360 / 16 * i}, ${x * 10}%, 50%)`;
+                    // text.style.fill = `hsl(${360 / 16 * i}, 60%, ${x * 10}%)`;
+                    text.style.fontSize = "3px";
+                    text.textContent = "AQUA";
+                    this.canvas.append(text);
+                }
+            }*/
         }, 0);
     }
 
     step() {
+        //this.#stars.firstElementChild.style.transform = `rotate(${new Date().valueOf() / 10000}rad)`;
+        //requestAnimationFrame(() => this.step());
+        //return;
+
         const now = new Date();
         const t = (now - this.t) / 1000;
         this.t = now;
@@ -413,12 +1016,35 @@ class UI extends HTMLElement {
             this.#second = new Date(this.#second.valueOf() + 1000);
         }
 
+        // basic 4 point nav route to compute therotical limit :)
+        // (overestimates 2 directly next to each other, but rest is cool)
+
+        // mission design
+        // three point approach:
+        // upper = easy, should be doable by absolute beginners (level 0)
+        // mid   = hard, should be doable only by experienced players (level 4)
+        // lower = impossible, theoretical limit to approach (level inf)
+        // base ** 4 * (upper - lower) + lower = mid
+        // base ** 4 * (upper - lower) = mid - lower
+        // base = ((mid - lower) / (upper - lower)) ** 1/4
+
+        // e.g. mission times for lower 60 mid 90 upper 120 / 180
+        //>>> ((90 - 60) / (120 - 60)) ** (1/4)
+        //0.8408964152537145
+        //>>> ((90 - 60) / (180 - 60)) ** (1/4)
+        //0.7071067811865476
+        //>>> [0.84 ** i * (120 - 60) + 60 for i in [0, 2, 4, 6, 8]]
+        //[120.0, 102.33599999999998, 89.8722816, 81.07788189696, 74.87255346649498]
+        //>>> [0.71 ** i * (180 - 60) + 60 for i in [0, 2, 4, 6, 8]]
+        //[180.0, 120.49199999999999, 90.4940172, 75.37203407051999, 67.74904237494913]
+
         this.#info.textContent = [
             `${this.#fps} FPS`,
-            `${Vec.abs(this.ship.velocity).toFixed(1)} m/s`,
-            `${Math.abs(this.ship.spin * 180 / Math.PI).toFixed(1)} deg/s`,
+            `${Vec.abs(this.ship.velocity).toFixed()} m/s`,
+            `${Math.abs(this.ship.spin * 180 / Math.PI).toFixed()} °/s`,
             // `${this.#abg}`,
-            `${this.#control.x.toFixed(2)}, ${this.#control.y.toFixed(2)}`
+            `${(this.#control.x * 100).toFixed()} %`,
+            `${(this.#control.y * 100).toFixed()} %`
         ].join("\n");
 
         // TODO windows & stars
@@ -466,10 +1092,11 @@ class UI extends HTMLElement {
         let camPos;
         let camScale;
         if (this.#zoom) {
-            const x = this.#fleet.map(
+            // console.log(this.fleet[0].parts);
+            const x = this.fleet.map(
                 ship => ship.parts.map(part => part.hitbox.vertices.map(v => v.x))
             ).flat(2);
-            const y = this.#fleet.map(
+            const y = this.fleet.map(
                 ship => ship.parts.map(part => part.hitbox.vertices.map(v => v.y))
             ).flat(2);
             const min = new DOMPoint(Math.min(...x), Math.min(...y));
@@ -481,6 +1108,9 @@ class UI extends HTMLElement {
             camScale = 75 / Math.max(width + 4 * 8, height + 4 * 8);
             // return new DOMRect(min.x, min.y, max.x - min.x, max.y - min.y);
         } else {
+
+        // XXX
+        //this.ship.rot += Math.PI / 100;
 
         // camera
         //const rot = entity.rot - this.ship.rot;
@@ -515,10 +1145,17 @@ class UI extends HTMLElement {
         // console.log("BREMSWEG", view, "m");
         // console.log("Scale", s);
         // global cam
-        this.querySelector("fleet-ui > svg > g").style.transform =
+        this.canvas.style.transform =
+            `scale(${camScale}, -${camScale}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
             // `scale(${s}, -${s}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
             // `scale(0.25) scaleY(-1) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
-            `scale(${camScale}, -${camScale}) rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px)`;
+        // this.#stars.firstElementChild.style.transform = `translate(50%, 50%) rotate(${camRot}rad) translate(-900px, -900px)`;
+        // this.#stars.style.transform = `rotate(${camRot}rad)`;
+        // this.#stars.firstElementChild.style.transform = `rotate(${camRot}rad)`;
+        // this.#stars.style.transform = `rotate(${camRot}rad)`;
+        //this.#stars.style.transform = `rotate(${new Date().valueOf() / 10000}rad)`;
+        this.querySelector(".starsopt").style.transform = `translate(-50%, -50%) rotate(${camRot}rad)`;
+        // this.querySelector("canvas").style.transform = `translate(-50%, -50%) rotate(${camRot}rad)`;
 
         for (let entity of this.#entities) {
             // const pos = entity.pos.sub(this.ship.pos);
@@ -588,6 +1225,11 @@ class UI extends HTMLElement {
 
         /*this.ship.pos = [this.ship.pos[0] + this.ship.v[0] * t,
                          this.ship.pos[1] + this.ship.v[1] * t];*/
+
+        for (let ship of this.fleet) {
+            ship.tick(this);
+        }
+
         requestAnimationFrame(() => this.step());
     }
 
@@ -801,11 +1443,11 @@ class UI extends HTMLElement {
                 //const dvb = joint.entityB.applyImpulse(Vector.mul(j, -1));
                 if (this.#frames === 0) {
                 //console.log(a.spin, dsa);
-                console.log(
-                    "VREL PRE AFT", v, Vector.dot(
-                        Vector.sub(b.getVelocityAt(pb), a.getVelocityAt(pa)),
-                    normal), Vector.dot(vd, normal)
-                );
+                //console.log(
+                //    "VREL PRE AFT", v, Vector.dot(
+                //        Vector.sub(b.getVelocityAt(pb), a.getVelocityAt(pa)),
+                //    normal), Vector.dot(vd, normal)
+                //);
                 }
                 return [dva, dvb];
             }
@@ -966,8 +1608,12 @@ class UI extends HTMLElement {
                     this.#joints.delete(this.ship.joint);
                     this.ship.joint = null;
                 }*/
-                if (a === this.ship && stickyedge && (!this.ship.joint || this.ship.joint?.entityB === b)) {
-                    console.log("NEW JOINT", collision.distance);
+                // if (a === this.ship && stickyedge && (!this.ship.joint || this.ship.joint?.entityB === b)) {
+                if (
+                    a === this.shuttle.body && stickyedge &&
+                    (!this.shuttle.links.size || this.shuttle.links.values().next().value.entityB === b)
+                ) {
+                    // console.log("NEW JOINT", collision.distance);
                     const joint = new Joint(
                         //this.ship, new DOMPoint(0, 8), container, new DOMPoint(0, -1.25)
                         //collision.a, collision.a.matrix.inverse().transformPoint(collision.vertex),
@@ -975,8 +1621,9 @@ class UI extends HTMLElement {
                         a, a.matrix.inverse().transformPoint(p),
                         b, b.matrix.inverse().transformPoint(p)
                     );
-                    this.ship.joint = joint;
+                    this.shuttle.links.add(joint);
                     this.#joints.add(joint);
+                    this.classList.add("shuttle-linked");
                     continue;
                 }
 
@@ -1051,16 +1698,30 @@ class UI extends HTMLElement {
     }
 
     #init() {
-        this.#fleet = this.#generator.generate();
-        for (let ship of this.#fleet) {
-            for (let part of ship.parts) {
-                this.#entities.push(part)
-                this.canvas.querySelector(".entities").append(part.node);
-            }
-        }
-        this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
-        this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
-        this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
+        this.fleet = this.#generator.generate();
+        const parts = this.fleet.map(ship => ship.parts).flat()
+        this.#entities.push(...parts)
+        this.canvas.querySelector(".entities").append(...parts.map(part => part.node));
+
+        //this.#docks =
+        //    this.fleet.map(ship => ship.modules).flat(2).filter(module => module instanceof Dock);
+        //for (let ship of this.fleet) {
+        //    for (let row of ship.modules) {
+        //        for (let module of row) {
+        //            for (let part of module.parts) {
+        //                this.#entities.push(part)
+        //                this.canvas.querySelector(".entities").append(part.node);
+        //            }
+        //        }
+        //    }
+        //}
+
+        // const ship = this.fleet[0];
+        // this.ship.update(Vector.add(ship.parts[ship.parts.length - 1].pos, new DOMPoint(30, 0)), 0);
+
+        //this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
+        //this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
+        //this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
     }
 
     #createContainer(position) {
@@ -1076,6 +1737,85 @@ class UI extends HTMLElement {
         this.#entityLayer.append(rect);
         this.#entities.push(container);
         return container;
+    }
+
+    #generateStars() {
+        console.log("GENERATING STARS");
+        // this.#stars = this.querySelector(".stars");
+        // const g = this.#stars.firstElementChild;
+        // this.#stars.style.background = "black";
+        this.#stars = document.createElement("svg");
+        const g = SVG.make("g");
+        this.#stars.append(g);
+        // const bounds = this.#stars.getBoundingClientRect(); // stars.getBBox();
+        const bounds = document.documentElement.getBoundingClientRect(); // stars.getBBox();
+        // const size = Math.max(bounds.width, bounds.height);
+        const size = Math.sqrt(bounds.width * bounds.width + bounds.height * bounds.height);
+        // console.log("R", bounds.width, bounds.height, size / 2);
+        // pi r2 = A
+        // pi (x * r)2 = pi x2 r2 = x2 A
+        // const count = (Math.PI * size * size / 4) / (Math.PI * (1920 * 1920 + 1080 * 1080) / 4) * 1000;
+
+        // 256 stars per megapixel
+        // const count = Math.trunc(Math.PI * Math.pow(size / 2, 2) / 1000000 * 256);
+        // const count = 1024;
+        const count = 512;
+
+        // console.log("STARS", count);
+        this.#stars.setAttribute("width", Math.trunc(size));
+        this.#stars.setAttribute("height", Math.trunc(size));
+        //const x = bounds.width / 2;
+        //const y = bounds.height / 2;
+        const x = size / 2;
+        const y = size / 2;
+        // g.append(SVG.make("rect", {x: x - size / 2, y: y - size / 2, width: size, height: size, stroke: "red"}));
+        for (let i = 0; i < count; i++) {
+            const s = Math.random();
+            const r = Math.sqrt(Math.random()) * size / 2;
+            const phi = Math.random() * 2 * Math.PI;
+            g.append(
+                SVG.make(
+                    "circle",
+                    {
+                        //cx: Math.random() * bounds.width,
+                        //cy: Math.random() * bounds.height,
+                        //cx: Math.random() * size,
+                        //cy: Math.random() * size,
+                        //cx: x + (Math.random() - 0.5) * size,
+                        //cy: y + (Math.random() - 0.5) * size,
+                        cx: x + r * Math.cos(phi),
+                        cy: y + r * Math.sin(phi),
+                        r: Math.random() * 1,
+                        // fill: `hsl(${226 + s * (372 - 226)}, 100%, ${80 + s * 20}%)`
+                        // fill: `hsl(${226 + s * (372 - 226)}, 100%, 100%)`
+                        fill: `hsl(${226 + s * (372 - 226)}, 100%, ${80 + s * 20}%)`,
+                        // fill: "white"
+                    }
+                )
+            );
+        }
+        // TODO transforming this needs some FPS... try to render to image for more performance
+        // (convert SVG DOM to svg string, img.src = data:// ...)
+        // const data = '<svg width="10" height="10"><rect width="10" height="10" fill="red"></rect></svg>';
+        // const data = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"></rect></svg>';
+        const data = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${this.#stars.innerHTML}</svg>`;
+        this.querySelector(".starsopt").src = `data:image/svg+xml,${encodeURIComponent(data)}`;
+        this.#stars.remove();
+        this.querySelector(".starsopt").addEventListener("load", () => {
+            // const pic = this.querySelector("canvas");
+            const pic = document.createElement("canvas");
+            pic.width = size;
+            pic.height = size;
+            const ctx = pic.getContext("2d");
+            ctx.drawImage(this.querySelector(".starsopt"), 0, 0);
+            // this.querySelector(".starsopt").remove();
+            this.querySelector(".starsopt").src = pic.toDataURL("image/png");
+            // pic.remove();
+        }, {once: true});
+        //console.log(this.#stars.outerHTML);
+            // #ff3300 -> 12
+            // #a1b7ff -> 226
+            // 50 - 80%
     }
 }
 customElements.define("fleet-ui", UI);

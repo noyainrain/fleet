@@ -183,4 +183,16 @@ export class Polygon {
     transform(matrix) {
         return new Polygon(this.vertices.map(v => matrix.transformPoint(v)));
     }
+
+    contains(p) {
+        for (let e of this.edges) {
+            const axis = Vector.norm(Vector.getNormal(Vector.sub(e[1], e[0])));
+            const bound = Vector.dot(e[0], axis);
+            const distance = Vector.dot(p, axis) - bound;
+            if (distance >= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

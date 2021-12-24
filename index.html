@@ -5,14 +5,25 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width" />
         <title>Fleet</title>
-        <link rel="stylesheet" href="fleet.css?bar" />
-        <script type="module" src="fleet.js?barx"></script>
+        <link rel="stylesheet" href="fleet.css?jjoa" />
+        <script type="module" src="fleet.js?ssdfffoa"></script>
     </head>
 
     <body>
-        <fleet-ui class="paused">
-            <svg class="layer canvas" xviewbox="-0.5 -0.5 1 1" viewbox="-37.5 -37.5 75 75" xviewbox="-100 -100 200 200">
+        <fleet-ui class="paused opening">
+            <!--<svg class="stars layer">
+                <rect width="500" height="10" fill="url(#blackbody)"></rect>
+                <g></g>
+            </svg>-->
+            <img class="starsopt" />
+            <svg class="canvas layer" xviewbox="-0.5 -0.5 1 1" viewbox="-37.5 -37.5 75 75" xviewbox="-100 -100 200 200">
                 <defs>
+                    <linearGradient id="blackbody">
+                        <stop offset="0%" stop-color="hsl(12, 100%, 80%)"></stop>
+                        <stop offset="50%" stop-color="hsl(119, 100%, 100%)"></stop>
+                        <stop offset="100%" stop-color="hsl(226, 100%, 80%)"></stop>
+                    </linearGradient>
+
                     <linearGradient id="lock-gradient">
                         <stop offset="0%" stop-color="#666"></stop>
                         <stop offset="50%" stop-color="#ccc"></stop>
@@ -164,9 +175,32 @@
                 </g>
             </svg>
 
-            <p class="layer info"></p>
+            <p class="cargo layer hud"></p>
+
+            <div class="info layer hud">
+                <p class="placeholder">00 m/s<!---100 %  -100 %--></p>
+                <p><span class="content"></span></p>
+            </div>
+
+            <div class="release layer hud">
+                <button xclass="release layer">Release</button>
+            </div>
+
+            <p class="dialog layer hud layer-centered"></p>
+
+            <div class="docking layer">
+                <svg width="20ch" height="1.5rem">
+                    <rect width="0%" height="100%" fill="green"></rect>
+                </svg>
+                <p>Docking…</p>
+            </div>
+
+            <div class="intro">
+                <h1 class="title">Fleet</h1>
+            </div>
 
             <div class="layer start">
+                <h1 class="title">Fleet</h1>
                 <div class="device">
                     <svg width="100" height="50">
                         <rect x="1" y="1" width="99" height="48" rx="10" ry="10"></rect>
@@ -177,6 +211,9 @@
                     <svg width="48" height="48">
                         <path d="M 1 1 L 47 24 L 1 47 Z" />
                     </svg>
+                    <!--<svg width="64" height="64">
+                        <path d="M 1 1 L 63 32 L 1 63 Z" />
+                    </svg>--->
                 </button>
             </div>
 
@@ -184,30 +221,106 @@
                 button {
                     background: none;
                     border: none;
+                    border: 1px solid green;
+                    border: 1px solid currentColor;
+                    /*border-radius: 0.25rem;*/
+                    border-top-left-radius: 0.25rem;
                     cursor: pointer;
+                    padding: 0.5rem;
+                    font: unset;
+                    color: unset;
+                }
+
+                button:hover {
+                    background: green;
+                    color: black;
                 }
 
                 fleet-ui {
                     display: block;
                     background: black;
                     height: 100%;
+
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                fleet-ui svg text {
+                    font-size: calc(2px * 3 / 2);
+                    font-weight: bold;
+                    font-weight: 900;
+                    transform: scaleY(-1);
+                    text-anchor: middle;
                 }
 
                 fleet-ui:not(.fleet-orientation) .device {
                     display: none;
                 }
 
+                fleet-ui .play {
+                    border: unset;
+                }
+
                 fleet-ui .play svg {
+                    vertical-align: middle;
+                    fill: currentColor;
                     /*stroke: green;*/
-                    fill: green;
                 }
 
                 fleet-ui.fleet-orientation .play {
                     display: none;
                 }
 
-                fleet-ui:not(.paused) .start {
+                fleet-ui .layer {
+                    position: absolute;
+                    /*left: 0;
+                    top: 0;
+                    width: 100%;
+                    height: 100%;*/
+                    box-sizing: border-box;
+                }
+
+                fleet-ui .title {
+                    position: absolute;
+                    /*width: fit-content;*/
+                    /*left: 0;
+                    right: 0;*/
+                    left: 0;
+                    right: 0;
+                    margin: 0;
+                    /*margin-left: auto;
+                    margin-right: auto;*/
+                    text-transform: uppercase;
+                    font-size: 4rem;
+                    top: 1.5rem;
+                    top: 0;
+                    /*bottom: 0;*/
+                    /*line-height: 1;*/
+                    font-weight: bold;
+                    font-weight: 900;
+                    text-align: center;
+                }
+
+                fleet-ui h1,
+                fleet-ui p {
+                    padding: 0.5rem;
+                    margin: 0;
+                }
+
+                fleet-ui .intro {
                     display: none;
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    top: 0;
+                    bottom: 0;
+                    background: black;
+                    transition: opacity 4s ease-in-out;
+                    /*padding: 1.5rem;*/
+                }
+
+                fleet-ui:not(.opening) .intro {
+                    opacity: 0;
                 }
 
                 fleet-ui .start {
@@ -217,10 +330,18 @@
                     right: 0;
                     bottom: 0;
                     background: black;
-                    background: rgba(0, 0, 0, 0.75);
+                    background: rgba(0, 0, 0, 0.8);
                     box-sizing: border-box;
                     text-align: center;
                     padding: 3rem 1.5rem;
+
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                fleet-ui:not(.paused) .start {
+                    display: none;
                 }
 
                 .device rect,
@@ -229,25 +350,114 @@
                     vector-effect: non-scaling-stroke;
                 }
 
-                fleet-ui .info {
-                    position: absolute;
+                fleet-ui .cargo {
                     left: 0;
                     top: 0;
-                    /*z-index: 1;*/
-                    color: green;
                     white-space: pre;
+                    border-bottom-right-radius: 0.25rem;
+                }
+
+                fleet-ui .cargo:empty {
+                    display: none;
+                }
+
+                fleet-ui .info {
+                    /*display: none;*/
+                    position: absolute;
+                    right: 0;
+                    top: 0;
+                    /*z-index: 1;*/
+                    /*color: green;*/
+                    text-align: right;
+                    .text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.5);
+                    margin: 0.5rem;
+                    border-bottom-left-radius: 0.25rem;
+                }
+
+                fleet-ui .info p {
+                    white-space: pre;
+                }
+
+                fleet-ui .info .placeholder {
+                    box-sizing: border-box;
+                    height: 0;
+                    padding-top: 0;
+                    padding-bottom: 0;
+                    overflow: hidden;
+                }
+
+                fleet-ui .release {
+                    right: 0;
+                    bottom: 0;
+                    margin: 0.5rem;
+                    padding: 1px;
+                    border-top-left-radius: 0.25rem;
+                }
+
+                fleet-ui:not(.shuttle-linked) .release {
+                    display: none;
+                }
+
+                fleet-ui .hud {
+                    /*background: rgba(0, 128, 0, 0.5);*/
+                    /*text-shadow: 1px 1px 0px rgba(0, 0, 0), -1px -1px 0px rgba(0, 0, 0);*/
+                    /*text-shadow: 0 0 4px rgb(0, 0, 0);*/
+                    xbackground: rgba(0, 0, 0, 0.5);
+                    background: hsla(120, 100%, 10%, 0.5);
+                    margin: 0.5rem;
+                }
+
+                /*fleet-ui .hud span {
+                    background: hsla(120, 100%, 10%, 0.5);
+                }*/
+
+                fleet-ui .dialog {
+                    xtext-shadow: 1px 1px 1px rgba(0, 0, 0, 0.75);
+                    transition: opacity 1s;
+                }
+
+                fleet-ui .dialog:empty {
+                    display: none;
+                }
+
+                fleet-ui .dialog.fade-out {
+                    opacity: 0%;
+                }
+
+                fleet-ui .docking {
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    text-align: center;
+                }
+
+                fleet-ui .layer-centered {
+                    left: 50%;
+                    top: 50%;
+                    transform: translate(-50%, -50%);
+                    border-radius: 0.25rem;
+                }
+
+                fleet-ui:not(.shuttle-docking) .docking {
+                    display: none;
+                }
+
+                fleet-ui .docking svg {
+                    display: block;
+                }
+
+                fleet-ui .docking rect {
+                    transition: width 2s linear;
                 }
 
                 fleet-ui .canvas {
                     display: block;
                     width: 100%;
                     height: 100%;
-                    background: black;
                 }
 
-                fleet-ui > svg > g {
-                    transform: scale(1, -1);
-                    transform: scaleY(-1);
+                fleet-ui .canvas > g {
+                    /*will-change: transform;*/
                 }
 
                 fleet-ui .annotations {
@@ -320,9 +530,74 @@
                     fill: blue;
                 }
 
+                fleet-ui .ship-quarters {
+                    fill: #ccc;
+                }
+
+                fleet-ui .ship-window {
+                    fill: #666;
+                    fill: #333;
+                }
+
+                fleet-ui .ship-window-on {
+                    fill: LightYellow;
+                    fill: LightCyan;
+                    fill: Ivory;
+                    fill: LemonChiffon;
+                    fill: Orange;
+                    fill: gold;
+                    fill: #ffb733; /* 60% orange*/
+                    fill: deepskyblue;
+                    fill: yellow;
+                    fill: #ffff33; /* 60% yellow*/
+                    fill: #ffdb99; /* 80% orange*/
+                    fill: #ffff99; /* 80% yellow*/
+                }
+
                 /*fleet-ui .ship-dock rect {
                     fill: silver;
                 }*/
+
+                fleet-ui .ship-body {
+                    fill: #ccc;
+                }
+
+                fleet-ui .ship-engine-bow {
+                    fill: #666;
+                }
+
+                fleet-ui .ship-bow text {
+                }
+
+                fleet-ui .starsopt,
+                fleet-ui canvas {
+                    position: absolute;
+                    background: black;
+                    left: 50%;
+                    top: 50%;
+                }
+
+                /*fleet-ui .stars circle {
+                    filter: blur(1px);
+                }*/
+
+                fleet-ui .stars {
+                    /*overflow: visible;*/
+                    /*contain: paint;*/
+                    /*buffered-rendering: static;
+                    pointer-events: none;*/
+                }
+
+                fleet-ui .stars g {
+                    transform-origin: center;
+                }
+
+                xfleet-ui .stars,
+                xfleet-ui .stars > g,
+                xfleet-ui .starsopt,
+                xfleet-ui .canvas > g {
+                    will-change: transform;
+                }
             </style>
 
             <!--<svg class="object carrier" width="100" height="300">
