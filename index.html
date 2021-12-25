@@ -175,15 +175,19 @@
                 </g>
             </svg>
 
-            <p class="cargo layer hud"></p>
+            <p class="cargo layer hud">No target<br>No cargo</p>
 
             <div class="info layer hud">
                 <p class="placeholder">00 m/s<!---100 %  -100 %--></p>
                 <p><span class="content"></span></p>
             </div>
 
+            <div class="standby hud">
+                <button>Stand by<span class="key">Enter</span></button>
+            </div>
+
             <div class="release layer hud">
-                <button xclass="release layer">Release</button>
+                <button xclass="release layer">Release<span class="key">Shift</span></button>
             </div>
 
             <p class="dialog layer hud layer-centered"></p>
@@ -224,16 +228,30 @@
                     border: 1px solid green;
                     border: 1px solid currentColor;
                     /*border-radius: 0.25rem;*/
-                    border-top-left-radius: 0.25rem;
+                    /*border-top-left-radius: 0.25rem;*/
                     cursor: pointer;
                     padding: 0.5rem;
                     font: unset;
                     color: unset;
+                    xtext-align: left;
                 }
 
                 button:hover {
                     background: green;
                     color: black;
+                }
+
+                .key {
+                    xdisplay: block;
+                    font-size: 12px;
+                }
+
+                .key:before {
+                    content: "\a0[";
+                }
+
+                .key:after {
+                    content: "]";
                 }
 
                 fleet-ui {
@@ -386,11 +404,28 @@
                     overflow: hidden;
                 }
 
+                fleet-ui .standby {
+                    bottom: 0;
+                }
+
+                fleet-ui .standby,
+                fleet-ui .standby button {
+                    border-top-right-radius: 0.25rem;
+                }
+
+                fleet-ui.shuttle-assigned .standby {
+                    display: none;
+                }
+
                 fleet-ui .release {
                     right: 0;
                     bottom: 0;
                     margin: 0.5rem;
                     padding: 1px;
+                }
+
+                fleet-ui .release,
+                fleet-ui .release button {
                     border-top-left-radius: 0.25rem;
                 }
 
@@ -399,6 +434,7 @@
                 }
 
                 fleet-ui .hud {
+                    position: absolute;
                     /*background: rgba(0, 128, 0, 0.5);*/
                     /*text-shadow: 1px 1px 0px rgba(0, 0, 0), -1px -1px 0px rgba(0, 0, 0);*/
                     /*text-shadow: 0 0 4px rgb(0, 0, 0);*/

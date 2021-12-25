@@ -9,6 +9,19 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 import {Entity, Polygon, Vector} from "./fleet/core.js?lxol";
 import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
 
+const ROLES = {
+    Captain: "An emergency meeting has been called at {loc}.",
+    Navigator: "There is an urgent meeting at {loc}.",
+    Engineer: "We have a technical problem at {loc}.",
+    Doctor: "We have a medical emergency at {loc}.",
+    Guard: "An offense has been reported at {loc}.",
+    Logistician: "We have some problematic cargo at {loc}.",
+    Scientist: "Something went wrong with the experiment running at {loc}."
+};
+//Communicator
+//Cook
+//Crewmember -- support for the last mission
+
 /*class Vector {
     x;
     y;
@@ -95,6 +108,15 @@ class Ship {
         return this.modules.map(row => row.map(module => module.parts)).flat(2);
     }
 
+    get bounds() {
+        const vertices = this.parts.map(part => part.hitbox.vertices).flat();
+        const xs = vertices.map(p => p.x);
+        const ys = vertices.map(p => p.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        return new DOMRect(minX, minY, Math.max(...xs) - minX, Math.max(...ys) - minY);
+    }
+
     tick(game) {
         for (let row of this.modules) {
             for (let module of row) {
@@ -117,6 +139,49 @@ class Module {
         this.parts = parts;
         this.ship = ship;
     }
+
+    get name() {
+        return `the ${this.type} on the ${this.ship.name}`;
+    }
+
+    findNearestDock() {
+        function getModuleCoords(module) {
+            const ship = module.ship;
+            for (let y = 0; y < ship.modules.length; y++) {
+                for (let x = 0; x < ship.modules[y].length; x++) {
+                    if (module === ship.modules[y][x]) {
+                        return [x, y];
+                    }
+                }
+            }
+            return undefined;
+        }
+
+        const module = this;
+        const ship = this.ship;
+        const coords = getModuleCoords(module);
+        const queue = [coords];
+        const visited = new Set();
+        while (queue.length) {
+            const [x, y] = queue.shift();
+            if (
+                !(x >= 0 && x < ship.modules[0].length && y >= 0 && y < ship.modules.length) ||
+                visited.has([x, y].toString())
+            ) {
+                continue;
+            }
+            visited.add([x, y].toString());
+            const module = ship.modules[y][x];
+            if (module.type === "dock") {
+                return module;
+            }
+            queue.push(
+                [x - 1, y - 1], [x, y - 1], [x + 1, y - 1], [x - 1, y], [x + 1, y],
+                [x - 1, y + 1], [x, y + 1], [x + 1, y + 1]
+            );
+        }
+        throw new Error();
+    }
 }
 
 class Dock extends Module {
@@ -131,75 +196,35 @@ class Dock extends Module {
         this.#hot = hot;
     }
 
+    get name() {
+        return `dock ${this.id} on the ${this.ship.name}`;
+    }
+
     tick(game) {
         switch (this.state) {
         case "arrival":
             // TODO not every frame
             const hot = this.#hot.transform(this.parts[0].matrix);
             if (
-                (!game.shuttle.cargo || game.shuttle.cargo.dock === this) &&
+                // (!game.shuttle.cargo || game.shuttle.cargo.dock === this) &&
+                (!game.shuttle.mission || game.shuttle.mission.target.dock === this) &&
                 game.shuttle.links.size >= 2 &&
                 [...game.shuttle.links].every(
                     link => hot.contains(link.entityA.matrix.transformPoint(link.anchorA))
                 )
             ) {
+                let mission;
+                // if (game.shuttle.cargo?.dock === this) {
+                //if (game.shuttle.mission.target.dock === this) {
+
                 let cargo;
-                if (game.shuttle.cargo?.dock === this) {
-                    // pass
+                if (game.shuttle.mission) {
+                    cargo = game.shuttle.mission.target.id === "pickup" ?
+                        game.shuttle.mission.character : null;
                 } else {
-                    function getModuleCoords(module) {
-                        const ship = module.ship;
-                        for (let y = 0; y < ship.modules.length; y++) {
-                            for (let x = 0; x < ship.modules[y].length; x++) {
-                                if (module === ship.modules[y][x]) {
-                                    return [x, y];
-                                }
-                            }
-                        }
-                        return undefined;
-                    }
-
-                    function findNearestDock(module) {
-                        const ship = module.ship;
-                        const coords = getModuleCoords(module);
-                        const queue = [coords];
-                        const visited = new Set();
-                        while (queue.length) {
-                            const [x, y] = queue.shift();
-                            if (
-                                !(x >= 0 && x < ship.modules[0].length && y >= 0 && y < ship.modules.length) ||
-                                visited.has([x, y].toString())
-                            ) {
-                                continue;
-                            }
-                            visited.add([x, y].toString());
-                            const module = ship.modules[y][x];
-                            if (module.type === "dock") {
-                                return module;
-                            }
-                            queue.push(
-                                [x - 1, y - 1], [x, y - 1], [x + 1, y - 1], [x - 1, y], [x + 1, y],
-                                [x - 1, y + 1], [x, y + 1], [x + 1, y + 1]
-                            );
-                        }
-                        throw new Error();
-                    }
-
-                    // const ship = game.fleet[Math.trunc(Math.random() * game.fleet.length)];
-                    //const x = Math.trunc(Math.random() * ship.modules[0].length);
-                    //const y = Math.trunc(Math.random() * ship.modules.length);
-                    // const modules = ship.modules.flat();
-                    const modules = game.fleet.map(ship => ship.modules).flat(2);
-                    let module = null;
-                    let dock = this;
-                    while (dock === this) {
-                        console.log("FIND DOCK");
-                        module = modules[Math.trunc(Math.random() * modules.length)];
-                        dock = findNearestDock(module);
-                    }
-
-                    const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
-                    cargo = new Cargo(name, module, dock);
+                    cargo = new Character(
+                        "Crewmember", SURNAMES[Math.trunc(Math.random() * SURNAMES.length)]
+                    );
                 }
 
                 //game.querySelector(".cargo").textContent =
@@ -210,6 +235,33 @@ class Dock extends Module {
                 this.state = "docking";
                 (async () => {
                     await game.shuttle.dock(cargo);
+
+                    if (!game.shuttle.mission) {
+                        // const ship = game.fleet[Math.trunc(Math.random() * game.fleet.length)];
+                        //const x = Math.trunc(Math.random() * ship.modules[0].length);
+                        //const y = Math.trunc(Math.random() * ship.modules.length);
+                        // const modules = ship.modules.flat();
+                        // const modules = game.fleet.map(ship => ship.modules).flat(2);
+                        let module = null;
+                        let dock = this;
+                        while (dock === this) {
+                            console.log("FIND DOCK");
+                            // module = modules[Math.trunc(Math.random() * modules.length)];
+                            module = game.getRandomLocation();
+                            dock = module.findNearestDock();
+                        }
+
+                        //const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
+                        //cargo = new Cargo(name, module, dock);
+                        mission = new Mission(cargo, null, null, module, dock);
+                        game.shuttle.assignMission(mission);
+                        game.shuttle.message(
+                            cargo.name,
+                             // `Hi! To the ${cargo.destination.type} on the ${cargo.destination.ship.name}, please!`
+                             `Hi! To ${module.name}, please!`
+                        );
+                    }
+
                     this.state = "departure";
                 })();
             }
@@ -251,23 +303,20 @@ class Shuttle {
         this.game.classList.remove("shuttle-docking");
 
         this.cargo = cargo;
-        const p = this.game.querySelector(".cargo");
-        if (cargo) {
-            const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
-            p.textContent =
-                cargo.destination.type === "dock" ?
-                //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
-                //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
-                `Crewmember ${cargo.name}\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
-                `Crewmember ${cargo.name}\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
-            this.message(
-                cargo.name,
-                `Hi! To the ${cargo.destination.type} on the ${cargo.destination.ship.name}, please!`
-            );
-        } else {
-            p.textContent = "";
-            this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
-        }
+        //const p = this.game.querySelector(".cargo");
+        //if (cargo) {
+        //    //const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
+        //    //p.textContent =
+        //    //    cargo.destination.type === "dock" ?
+        //    //    //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+        //    //    //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+        //    //    `Crewmember ${cargo.name}\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+        //    //    `Crewmember ${cargo.name}\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+        //} else {
+        //    //p.textContent = "";
+        //    //this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
+        //}
+        this.updateTarget();
 
         /*await new Promise(resolve => setTimeout(resolve, 0));
         this.game.classList.add("shuttle-undocking");
@@ -289,9 +338,183 @@ class Shuttle {
         p.style.opacity = "100%";
         p.textContent = "";
     }
+
+    async assignMission(mission) {
+        this.mission = mission;
+        this.game.classList.toggle("shuttle-assigned", mission)
+        this.updateTarget();
+    }
+
+    async standBy() {
+        if (this.mission) {
+            return;
+        }
+        // await days + 7 animation
+
+        // TODO time log curve
+
+        const pickup = this.game.getRandomLocation();
+        const pickupDock = pickup.findNearestDock();
+        let destination;
+        let destinationDock = pickupDock;
+        while (destinationDock === pickupDock) {
+            destination = this.game.getRandomLocation();
+            destinationDock = destination.findNearestDock();
+        }
+
+        const mission = new Mission(
+            this.game.characters[Math.trunc(Math.random() * (this.game.characters.length - 1))],
+            pickup, pickupDock, destination, destinationDock, null
+        );
+        this.assignMission(mission);
+        const event = ROLES[mission.character.role].replace("{loc}", mission.destination.name);
+
+        const bounds = this.game.fleet.map(ship => ship.bounds);
+        const min = Math.min(...bounds.map(bounds => bounds.y));
+        const max = Math.max(...bounds.map(bounds => bounds.y + bounds.height));
+        console.log("MIN", min, "MAX", max);
+
+        const nav = (from, to, color) => {
+            //new DOMPoint(to.x, over),
+            //const points = [
+            //    from,
+            //    new DOMPoint(from.x, over),
+            //    new DOMPoint(to.x, over),
+            //    to
+            //];
+            //const graph = new Map([[points[0], points[1]], [points[1], points[2]], [points[2], points[3]]]);
+
+            const fromAbove = new DOMPoint(from.x, max);
+            const fromBelow = new DOMPoint(from.x, min);
+            const toAbove = new DOMPoint(to.x, max);
+            const toBelow = new DOMPoint(to.x, min);
+            const graph = new Map([
+                [from, [fromAbove, fromBelow]],
+                [fromAbove, [toAbove]],
+                [toAbove, [to]],
+                [fromBelow, [toBelow]],
+                [toBelow, [to]]
+            ]);
+            console.log("GRAPH", graph);
+            //const queue = [[[from], 0]];
+            //while (queue.length) {
+            //    const [path, dist] = queue.shift();
+            //    const p = path[path.length - 1];
+            //    for (let next of graph.get(p)) {
+            //        queue.push(dist + Vector.abs(Vector.sub(next, p)), [...path, next]);
+            //    }
+            //}
+
+            function getShortest(graph, from, to) {
+                console.log("GET SHORT", from, to);
+                if (from === to) {
+                    return [[to], 0];
+                }
+
+                let minPath;
+                let minDist = Infinity;
+                for (let next of graph.get(from)) {
+                    const dist = Vector.abs(Vector.sub(next, from));
+                    let [path, pathDist] = getShortest(graph, next, to);
+                    pathDist += Vector.abs(Vector.sub(next, from));
+                    if (pathDist < minDist) {
+                        minDist = pathDist;
+                        minPath = [from, ...path];
+                    }
+                }
+                return [minPath, minDist];
+            }
+
+            const [path, dist] = getShortest(graph, from, to);
+
+            //let distance = 0;
+            //for (let [p1, p2] of graph.entries()) {
+            //    distance += Vector.abs(Vector.sub(p2, p1));
+            //}
+            //console.log("DISTANCE", distance);
+
+            if (this.game.debug) {
+                let edges = Array.from(graph.entries())
+                    .map(([key, value]) => value.map(p => [key, p])).flat();
+                edges = edges.map(
+                    ([p1, p2]) => SVG.make("line", {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: color})
+                )
+                console.log("EDGES", edges);
+                const g = SVG.make("g");
+                g.append(...edges);
+                this.game.annotate("nav-grid" + color, g);
+
+                const d = [
+                    `M ${path[0].x} ${path[0].y}`,
+                    ...path.slice(1).map(p => `L ${p.x} ${p.y}`)
+                ].join(" ");
+                this.game.annotate("nav" + color, SVG.make("path", {d, stroke: color, "stroke-width": 4}));
+            }
+
+            return dist;
+
+            //if (this.game.debug) {
+            //    const d = [
+            //        `M ${points[0].x} ${points[0].y}`,
+            //        ...points.slice(1).map(p => `L ${p.x} ${p.y}`)
+            //    ].join(" ");
+            //    this.game.annotate("nav" + color, SVG.make("path", {d, stroke: color, "stroke-width": w}));
+            //}
+        }
+
+        const dist = nav(this.body.pos, pickupDock.parts[0].pos, "rgba(255, 0, 0, 0.5)") +
+            nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, "rgba(0, 255, 0, 0.5)");
+        console.log("DIST", dist);
+
+        // 3 turns accel + deaccel a 2s
+        const acceltime = 3 * 2 * 2;
+        const acceldist = 3 * 2 * (UI.ENGINE * 2 * 2 / 2);
+        console.log("ACCELDIST", acceldist, acceltime);
+        //                                                                 docking with hin/weg rotation
+        const lower = (dist - acceldist) / UI.TARGET_VELOCITY + acceltime + 2 * (1 + 2 + 1);
+        console.log("LOWER TIME", lower, "s");
+
+        //nav(this.body.pos, pickupDock.parts[0].pos, max, "lime", 3);
+        //nav(this.body.pos, pickupDock.parts[0].pos, min, "green", 3);
+        //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, max, "red");
+        //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, min, "orange");
+
+        await this.message(
+            this.game.characters[this.game.characters.length - 1].name,
+            // `${event} Find ${mission.character.name} at ${mission.pickup.name} and bring them over there ASAP!`
+            `${event} Get ${mission.character.name} over there ASAP!`
+        );
+
+        // set mission
+
+        // dock.tick() if no mission create mini mission
+        // dock.tick() load cargo of mission
+        // hello message
+
+        // dock.tick() unload cargo of mission
+        // closing message
+    }
+
+    updateTarget() {
+        const p = this.game.querySelector(".cargo");
+        let target = "No target\n";
+        if (this.mission) {
+            target = this.mission.target;
+            const type = `${target.module.type[0].toUpperCase()}${target.module.type.slice(1)}`;
+            target = target.module.type === "dock" ?
+                //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+                //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+                `${type} ${target.dock.id} on ${target.module.ship.name}` :
+                `${type} on ${target.module.ship.name}, dock ${target.dock.id}`;
+            const time = (new Date() - this.mission.t) / 1000;
+            target += `\n${time.toFixed(2)} s`;
+        }
+        const cargo = this.cargo ? this.cargo.name : "No cargo";
+        p.textContent = `${target}\n${cargo}`;
+    }
 }
 
-class Cargo {
+/*class Cargo {
     name;
     destination;
     dock;
@@ -300,6 +523,80 @@ class Cargo {
         this.name = name;
         this.destination = destination;
         this.dock = dock;
+    }
+}*/
+
+class Mission {
+    target;
+
+    constructor(character, pickup, pickupDock, destination, destinationDock, time) {
+        this.character = character;
+        this.pickup = pickup;
+        this.pickupDock = pickupDock;
+        this.destination = destination;
+        this.destinationDock = destinationDock;
+        this.time = time;
+        this.t = new Date();
+        if (pickup) {
+            this.target = new Target("pickup", pickup, pickupDock);
+        } else {
+            this.target = new Target("destination", destination, destinationDock);
+        }
+    }
+
+    tick(game) {
+        game.shuttle.updateTarget();
+
+        switch (this.target.id) {
+        case "pickup":
+            if (game.shuttle.cargo) {
+                this.target = new Target("destination", this.destination, this.destination.findNearestDock());
+                game.shuttle.updateTarget();
+                game.shuttle.message(this.character.name, "Good to see you!");
+            }
+            break;
+        case "destination":
+            if (!game.shuttle.cargo) {
+                game.shuttle.assignMission(null);
+                if (this.pickup) {
+                    game.shuttle.message(
+                        game.characters[game.characters.length - 1].name,
+                        `${this.character.name} has arrived. Good job!`
+                    );
+                } else {
+                    game.shuttle.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
+                }
+            }
+            break;
+        default:
+            throw new Error();
+        }
+    }
+}
+
+class Target {
+    id;
+    module;
+    dock;
+
+    constructor(id, module, dock) {
+        this.id = id;
+        this.module = module;
+        this.dock = dock;
+    }
+}
+
+class Character {
+    role;
+    surname;
+
+    constructor(role, surname) {
+        this.role = role;
+        this.surname = surname;
+    }
+
+    get name() {
+        return `${this.role} ${this.surname}`;
     }
 }
 
@@ -761,7 +1058,7 @@ class UI extends HTMLElement {
     #joints = new Set();
     #annotations = new Map();
 
-    #options = {rotateCam: true, debug: false, cruise: true};
+    #options = {rotateCam: true, debug: true, cruise: true};
     #info;
     #stars;
 
@@ -824,6 +1121,9 @@ class UI extends HTMLElement {
                 break;
             case "Shift":
                 this.releaseShuttleLink();
+                break;
+            case "Enter":
+                this.shuttle.standBy();
                 break;
             }
         });
@@ -902,6 +1202,10 @@ class UI extends HTMLElement {
         addEventListener("resize", checkOrientation);
     }
 
+    get debug() {
+        return this.#options.debug;
+    }
+
     play() {
         this.classList.remove("paused");
         this.classList.remove("opening");
@@ -927,11 +1231,21 @@ class UI extends HTMLElement {
         }
     }
 
+    getRandomLocation() {
+        const modules = this.fleet.map(ship => ship.modules).flat(2);
+        return modules[Math.trunc(Math.random() * modules.length)];
+    }
+
     connectedCallback() {
         setTimeout(() => {
             this.querySelector(".play").addEventListener("click", async () => {
                 await document.body.requestFullscreen();
                 // this.play();
+            });
+
+            this.querySelector(".standby").addEventListener("click", event => {
+                this.shuttle.standBy();
+                event.stopPropagation();
             });
 
             this.querySelector(".release").addEventListener("click", event => {
@@ -1229,6 +1543,9 @@ class UI extends HTMLElement {
         for (let ship of this.fleet) {
             ship.tick(this);
         }
+        if (this.shuttle.mission) {
+            this.shuttle.mission.tick(this);
+        }
 
         requestAnimationFrame(() => this.step());
     }
@@ -1469,13 +1786,7 @@ class UI extends HTMLElement {
             // console.log("JOINT", j * t);
 
             if (this.#options.debug) {
-                let annotation = this.#annotations.get(joint);
-                if (annotation) {
-                    annotation.remove();
-                }
-
-
-                annotation = SVG.make("g", {class: "joint"}); // {class: `joint ${drifting ? "drifting" : ""}`});
+                const annotation = SVG.make("g", {class: "joint"}); // {class: `joint ${drifting ? "drifting" : ""}`});
                 const dvaStop = Vector.add(anchorA, dva);
                 const dvbStop = Vector.add(anchorB, dvb);
                 // console.log(anchorA, dva, dvaStop);
@@ -1485,11 +1796,18 @@ class UI extends HTMLElement {
                     SVG.make("circle", {cx: anchorB.x, cy: anchorB.y, r: 0.5}),
                     SVG.make("line", {x1: anchorB.x, y1: anchorB.y, x2: dvbStop.x, y2: dvbStop.y})
                 );
-
-                this.#annotationLayer.append(annotation);
-                this.#annotations.set(joint, annotation);
+                this.annotate(joint, annotation);
             }
         }
+    }
+
+    annotate(id, node) {
+        let annotation = this.#annotations.get(id);
+        if (annotation) {
+            annotation.remove();
+        }
+        this.#annotationLayer.append(node);
+        this.#annotations.set(id, node);
     }
 
     #computeCollisions(t) {
@@ -1589,7 +1907,7 @@ class UI extends HTMLElement {
                 }
 
                 let p = collision.vertex;
-                const DELTA = 1;
+                const DELTA = 0.1;
                 if (a.mass <= b.mass) {
                     // a.update(Vec.add(a.pos, Vector.mul(normal, collision.distance)), a.rot);
                     a.update(Vec.add(a.pos, Vector.mul(normal, collision.distance - DELTA)), a.rot);
@@ -1722,6 +2040,13 @@ class UI extends HTMLElement {
         //this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
         //this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
         //this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
+
+        this.characters = Object.keys(ROLES).map(
+            role => new Character(role, SURNAMES[Math.trunc(Math.random() * SURNAMES.length)])
+        );
+        this.characters.push(
+            new Character("Communicator", SURNAMES[Math.trunc(Math.random() * SURNAMES.length)])
+        );
     }
 
     #createContainer(position) {
