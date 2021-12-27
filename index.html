@@ -5,7 +5,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width" />
         <title>Fleet</title>
-        <link rel="stylesheet" href="fleet.css?jjoa" />
+        <link rel="stylesheet" href="fleet.css?jjjoa" />
         <script type="module" src="fleet.js?ssdfffoa"></script>
     </head>
 
@@ -48,6 +48,12 @@
                         <stop offset="100%" stop-color="DeepSkyBlue" stop-opacity="0"></stop>
                     </radialGradient>
 
+                    <radialGradient id="spark-gradient">
+                        <stop offset="0%" stop-color="white"></stop>
+                        <stop offset="50%" stop-color="DeepSkyBlue" stop-opacity="0.5"></stop>
+                        <stop offset="100%" stop-color="DeepSkyBlue" stop-opacity="0"></stop>
+                    </radialGradient>
+
                     <linearGradient id="engine-gradient2" y2="100%" x2="0%">
                         <stop offset="25%" stop-color="DeepSkyBlue" stop-opacity="0.75"></stop>
                         <stop offset="0%" stop-color="blue" stop-opacity="1"></stop>
@@ -63,7 +69,7 @@
                     <g class="entities">
                         <!--<path class="object ship" d="M 0 8 L 6 -8 L -6 -8 Z" />-->
                         <!--<path class="object ship" d="M 0 4 L 2 -4 L -2 -4 Z" />-->
-                        <g class="object ship">
+                        <g class="object shuttle">
                             <!--<path d="M -1.5 3 A 1.5 1 0 0 0 1.5 3 L 2 -4 L -2 -4 Z" />-->
                             <!--<path d="M -2 2 A 2 2 0 0 0 2 2 L 2 -4 L -2 -4 Z" />-->
                             <!-- best -->
@@ -175,29 +181,39 @@
                 </g>
             </svg>
 
-            <p class="cargo layer hud">No target<br>No cargo</p>
+            <div class="shuttle-state hud">
+                <p class="shuttle-target"></p>
+                <p class="shuttle-cargo">No cargo</p>
+            </div>
 
-            <div class="info layer hud">
-                <p class="placeholder">00 m/s<!---100 %  -100 %--></p>
+            <div class="info hud">
                 <p><span class="content"></span></p>
+                <p class="placeholder">00 m/s</p>
             </div>
 
-            <div class="standby hud">
-                <button>Stand by<span class="key">Enter</span></button>
+            <div class="menu hud x-start y-end">
+                <button class="map">Map<span class="key">M</span></button>
+                <button class="standby">Stand by<span class="key">Enter</span></button>
             </div>
 
-            <div class="release layer hud">
-                <button xclass="release layer">Release<span class="key">Shift</span></button>
+            <div class="release hud">
+                <button>Release<span class="key">Shift</span></button>
             </div>
 
-            <p class="dialog layer hud layer-centered"></p>
-
-            <div class="docking layer">
-                <svg width="20ch" height="1.5rem">
-                    <rect width="0%" height="100%" fill="green"></rect>
-                </svg>
-                <p>Docking…</p>
+            <div class="dialog hud x-center y-center">
+                <p><span class="message-from"></span>: <span class="message-text"></span></p>
             </div>
+
+            <div class="docking hud x-center y-center">
+                <div>
+                    <svg width="20ch" height="1.5rem">
+                        <rect width="0%" height="100%"></rect>
+                    </svg>
+                    <p>Docking…</p>
+                </div>
+            </div>
+
+            <h1 class="mission title"></h1>
 
             <div class="intro">
                 <h1 class="title">Fleet</h1>
@@ -221,12 +237,35 @@
                 </button>
             </div>
 
+            <div class="credits layer">
+                <div class="layer">
+                    <h1 class="title">Fleet</h1>
+                    <div class="x-center y-center">
+                        <p>
+                            <span></span>
+                            <small></small>
+                        </p>
+                        <div class="credits-menu">
+                            <button class="back">
+                                <svg width="12" height="12">
+                                    <path d="M 0 6 L 6 0 L 6 6 L 12 0 L 12 12 L 6 6 L 6 12 Z" />
+                                </svg>
+                            </button>
+                            <a href="https://gitter.im/fleet-game/community" target="_blank">Community</a>
+                        </div>
+                    </div>
+                    <p class="copyright x-center y-end">© 2021 Fleet contributors</p>
+                </div>
+            </div>
+
             <style>
+                a,
                 button {
+                    display: block;
                     background: none;
-                    border: none;
-                    border: 1px solid green;
-                    border: 1px solid currentColor;
+                    box-shadow: inset 0 0 0 1px currentColor;
+                    border: 1px solid transparent;
+                    background-origin: border-box;
                     /*border-radius: 0.25rem;*/
                     /*border-top-left-radius: 0.25rem;*/
                     cursor: pointer;
@@ -234,12 +273,21 @@
                     font: unset;
                     color: unset;
                     xtext-align: left;
+                    min-width: calc(1.5rem + 2 * 0.5rem);
+                    text-decoration: none;
                 }
 
-                button:hover {
-                    background: green;
-                    color: black;
+                a,
+                button svg {
+                    fill: currentColor;
+                    xvertical-align: middle;
                 }
+
+                /*a:hover,
+                button:hover {
+                    background: hsl(120, 100%, 60%);
+                    color: black;
+                }*/
 
                 .key {
                     xdisplay: block;
@@ -276,7 +324,7 @@
                 }
 
                 fleet-ui .play {
-                    border: unset;
+                    box-shadow: unset;
                 }
 
                 fleet-ui .play svg {
@@ -291,10 +339,10 @@
 
                 fleet-ui .layer {
                     position: absolute;
-                    /*left: 0;
+                    left: 0;
                     top: 0;
                     width: 100%;
-                    height: 100%;*/
+                    height: 100%;
                     box-sizing: border-box;
                 }
 
@@ -325,20 +373,146 @@
                     margin: 0;
                 }
 
+                fleet-ui .mission {
+                    /*transition: opacity 4s ease-in-out;*/
+                    animation-duration: 4s;
+                    /*opacity: 0%;*/
+                }
+
+                fleet-ui .mission.fade {
+                    transition: opacity 2s 2s ease-in-out;
+                    opacity: 0%;
+                }
+
+                @keyframes fade {
+                    from {
+                        opacity: 100%;
+                    }
+
+                    50% {
+                        opacity: 100%;
+                    }
+
+                    /*33% {
+                        opacity: 100%;
+                    }
+
+                    66% {
+                        opacity: 100%;
+                    }*/
+
+                    to {
+                        opacity: 0%;
+                    }
+                }
+
                 fleet-ui .intro {
-                    display: none;
                     position: absolute;
                     left: 0;
                     right: 0;
                     top: 0;
                     bottom: 0;
                     background: black;
-                    transition: opacity 4s ease-in-out;
+                    pointer-events: none;
                     /*padding: 1.5rem;*/
                 }
 
                 fleet-ui:not(.opening) .intro {
                     opacity: 0;
+                    transition: opacity 4s ease-in-out;
+                }
+
+                /*fleet-ui:not(.game-over) .credits {
+                    display: none;
+                }*/
+
+                fleet-ui:not(.credits-rolling):not(.game-over) .credits {
+                    display: none;
+                }
+
+                fleet-ui .credits {
+                    background: black;
+                    /*opacity: 0%;
+                    pointer-events: none;*/
+                    animation-duration: 2s;
+                    animation-timing-function: ease-in-out;
+                }
+
+                fleet-ui .credits > div {
+                    animation-duration: 4s;
+                    animation-timing-function: ease-out;
+                }
+
+                fleet-ui.game-over .credits {
+                    transition: opacity 4s ease-in-out;
+                    transition: opacity 16s ease-in-out;
+                    /*opacity: 100%;*/
+                }
+
+                @keyframes credits-fade-in {
+                    from {
+                        opacity: 0%;
+                    }
+                }
+
+                @keyframes credits-roll {
+                    from {
+                        transform: translateY(100%);
+                    }
+                }
+
+                fleet-ui.credits-rolling .credits-menu {
+                    visibility: hidden;
+                }
+
+                fleet-ui .credits-menu {
+                    display: flex;
+                    gap: 0.5rem;
+                    justify-content: center;
+                }
+
+                fleet-ui .credits small {
+                    display: block;
+                    font-size: 0.875rem;
+                }
+
+                .x-start {
+                    position: absolute;
+                    left: 0;
+                    text-align: start;
+                }
+
+                .x-center {
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    text-align: center;
+                }
+
+                .x-end {
+                    position: absolute;
+                    right: 0;
+                    text-align: end;
+                }
+
+                .y-start {
+                    position: absolute;
+                    top: 0;
+                }
+
+                .y-center {
+                    position: absolute;
+                    top: 50%;
+                    transform: translateY(-50%);
+                }
+
+                .y-end {
+                    position: absolute;
+                    bottom: 0;
+                }
+
+                .x-center.y-center {
+                    transform: translate(-50%, -50%);
                 }
 
                 fleet-ui .start {
@@ -356,6 +530,7 @@
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    xdisplay: none;
                 }
 
                 fleet-ui:not(.paused) .start {
@@ -371,12 +546,24 @@
                 fleet-ui .cargo {
                     left: 0;
                     top: 0;
-                    white-space: pre;
                     border-bottom-right-radius: 0.25rem;
                 }
 
                 fleet-ui .cargo:empty {
                     display: none;
+                }
+
+                fleet-ui .shuttle-state.hud {
+                    background: transparent;
+                    margin: 0;
+                }
+
+                fleet-ui .shuttle-state > * {
+                    border-bottom-right-radius: 0.25rem;
+                }
+
+                fleet-ui .shuttle-target {
+                    white-space: pre;
                 }
 
                 fleet-ui .info {
@@ -388,12 +575,11 @@
                     /*color: green;*/
                     text-align: right;
                     .text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.5);
-                    margin: 0.5rem;
-                    border-bottom-left-radius: 0.25rem;
                 }
 
                 fleet-ui .info p {
                     white-space: pre;
+                    border-bottom-left-radius: 0.25rem;
                 }
 
                 fleet-ui .info .placeholder {
@@ -408,20 +594,21 @@
                     bottom: 0;
                 }
 
-                fleet-ui .standby,
-                fleet-ui .standby button {
+                fleet-ui .menu,
+                fleet-ui .map,
+                fleet-ui .standby {
                     border-top-right-radius: 0.25rem;
                 }
 
                 fleet-ui.shuttle-assigned .standby {
-                    display: none;
+                    xcolor: black;
+                    xcolor: hsl(120, 100%, 10%);
+                    opacity: 50%;
                 }
 
                 fleet-ui .release {
                     right: 0;
                     bottom: 0;
-                    margin: 0.5rem;
-                    padding: 1px;
                 }
 
                 fleet-ui .release,
@@ -430,7 +617,8 @@
                 }
 
                 fleet-ui:not(.shuttle-linked) .release {
-                    display: none;
+                    xdisplay: none;
+                    opacity: 50%;
                 }
 
                 fleet-ui .hud {
@@ -439,7 +627,17 @@
                     /*text-shadow: 1px 1px 0px rgba(0, 0, 0), -1px -1px 0px rgba(0, 0, 0);*/
                     /*text-shadow: 0 0 4px rgb(0, 0, 0);*/
                     xbackground: rgba(0, 0, 0, 0.5);
+                    xbackground: hsla(120, 100%, 10%, 0.5);
+                    xmargin: 0.5rem;
+                }
+
+                fleet-ui .hud > * {
                     background: hsla(120, 100%, 10%, 0.5);
+                }
+
+                /*fleet-ui .hud > *:not(:first-child) {*/
+                /*margin-top*/
+                fleet-ui .hud > * {
                     margin: 0.5rem;
                 }
 
@@ -447,24 +645,26 @@
                     background: hsla(120, 100%, 10%, 0.5);
                 }*/
 
-                fleet-ui .dialog {
+                fleet-ui .dialog p {
                     xtext-shadow: 1px 1px 1px rgba(0, 0, 0, 0.75);
-                    transition: opacity 1s;
+                    border-radius: 0.25rem;
                 }
 
-                fleet-ui .dialog:empty {
+                fleet-ui:not(.shuttle-messaged) .dialog {
                     display: none;
                 }
 
                 fleet-ui .dialog.fade-out {
+                    transition: opacity 1s ease-in-out;
                     opacity: 0%;
                 }
 
-                fleet-ui .docking {
-                    left: 50%;
-                    top: 50%;
-                    transform: translate(-50%, -50%);
-                    text-align: center;
+                fleet-ui .message-from {
+                    font-weight: bold;
+                }
+
+                fleet-ui .docking > div {
+                    border-radius: 0.25rem;
                 }
 
                 fleet-ui .layer-centered {
@@ -484,6 +684,7 @@
 
                 fleet-ui .docking rect {
                     transition: width 2s linear;
+                    fill: currentColor;
                 }
 
                 fleet-ui .canvas {
@@ -529,12 +730,12 @@
                     stroke: red;
                 }
 
-                fleet-ui .ship {
+                fleet-ui .shuttle {
                     /*fill: silver;*/
                     fill: #ccc;
                 }
 
-                fleet-ui .ship .window {
+                fleet-ui .shuttle .window {
                     fill: SkyBlue;
                     fill: MediumTurquoise;
                     fill: SteelBlue;
@@ -546,23 +747,23 @@
                     fill: #4c6c4c; /* 75% #666 + 25% Green */
                 }
 
-                fleet-ui .ship .wings {
+                fleet-ui .shuttle .wings {
                     fill: #999;
                 }
 
-                fleet-ui .ship .lock {
+                fleet-ui .shuttle .lock {
                     fill: url("#lock-gradient");
                 }
 
-                fleet-ui .ship .engine {
+                fleet-ui .shuttle .engine {
                     fill: url(#engine-gradient);
                 }
 
-                fleet-ui .ship .thruster {
+                fleet-ui .shuttle .thruster {
                     opacity: 0;
                 }
 
-                fleet-ui .ship circle {
+                fleet-ui .shuttle circle {
                     fill: blue;
                 }
 

@@ -6,6 +6,7 @@ addEventListener("error", event => {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+import {animate, animate2, transition} from "./fleet/util.js";
 import {Entity, Polygon, Vector} from "./fleet/core.js?lxol";
 import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
 
@@ -21,6 +22,16 @@ const ROLES = {
 //Communicator
 //Cook
 //Crewmember -- support for the last mission
+
+const CONCLUSIONS = {
+    Captain: "Then there was a mutiny.",
+    Navigator: "Then there was a navigation mishap.",
+    Engineer: "Then the computers crashed.",
+    Doctor: "Then there was a tragic accident.",
+    Guard: "Then a traitor took control.",
+    Logistician: "Then there was some toxic cargo.",
+    Scientist: "Then there was an outbreak."
+};
 
 /*class Vector {
     x;
@@ -251,15 +262,16 @@ class Dock extends Module {
                             dock = module.findNearestDock();
                         }
 
-                        //const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
-                        //cargo = new Cargo(name, module, dock);
-                        mission = new Mission(cargo, null, null, module, dock);
-                        game.shuttle.assignMission(mission);
-                        game.shuttle.message(
+                        await game.shuttle.message(
                             cargo.name,
                              // `Hi! To the ${cargo.destination.type} on the ${cargo.destination.ship.name}, please!`
                              `Hi! To ${module.name}, please!`
                         );
+
+                        //const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
+                        //cargo = new Cargo(name, module, dock);
+                        mission = new Mission(cargo, null, null, module, dock);
+                        game.shuttle.assignMission(mission);
                     }
 
                     this.state = "departure";
@@ -287,6 +299,7 @@ class Shuttle {
     game;
     links = new Set();
     cargo = null;
+    #message = null;
 
     constructor(body, game) {
         this.body = body;
@@ -303,6 +316,7 @@ class Shuttle {
         this.game.classList.remove("shuttle-docking");
 
         this.cargo = cargo;
+        this.game.querySelector(".shuttle-cargo").textContent = cargo ? cargo.name : "No cargo";
         //const p = this.game.querySelector(".cargo");
         //if (cargo) {
         //    //const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
@@ -316,7 +330,7 @@ class Shuttle {
         //    //p.textContent = "";
         //    //this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
         //}
-        this.updateTarget();
+        //this.updateTarget();
 
         /*await new Promise(resolve => setTimeout(resolve, 0));
         this.game.classList.add("shuttle-undocking");
@@ -328,30 +342,43 @@ class Shuttle {
     }
 
     async message(from, text) {
-        const p = this.game.querySelector(".dialog");
-        text = `${from}: ${text}`;
-        p.textContent = text;
-        const words = text.split(/\s+/u).length;
-        await new Promise(resolve => setTimeout(resolve, words * 60 / 120 * 1000));
-        p.style.opacity = "0%";
-        await new Promise(resolve => p.addEventListener("transitionend", resolve, {once: true}));
-        p.style.opacity = "100%";
-        p.textContent = "";
+        const lastThread = this.#message;
+        this.#message = (async() => {
+            await lastThread;
+            const dialog = this.game.querySelector(".dialog");
+            const fromSpan = this.game.querySelector(".message-from");
+            const textSpan = this.game.querySelector(".message-text");
+            fromSpan.textContent = from;
+            textSpan.textContent = text;
+            this.game.classList.add("shuttle-messaged");
+            const words = `${from}: ${text}`.split(/\s+/u).length;
+            await new Promise(resolve => setTimeout(resolve, words * 60 / 120 * 1000));
+            await animate(dialog, "fade-out");
+            this.game.classList.remove("shuttle-messaged");
+        })();
+        await this.#message;
     }
 
     async assignMission(mission) {
         this.mission = mission;
         this.game.classList.toggle("shuttle-assigned", mission)
+        this.standingBy = false;
         this.updateTarget();
     }
 
     async standBy() {
-        if (this.mission) {
+        if (this.standingBy || this.mission) {
             return;
         }
+
+        this.standingBy = true;
+        this.game.classList.add("shuttle-assigned");
+
         // await days + 7 animation
 
         // TODO time log curve
+
+        this.game.level++;
 
         const pickup = this.game.getRandomLocation();
         const pickupDock = pickup.findNearestDock();
@@ -362,12 +389,22 @@ class Shuttle {
             destinationDock = destination.findNearestDock();
         }
 
-        const mission = new Mission(
-            this.game.characters[Math.trunc(Math.random() * (this.game.characters.length - 1))],
-            pickup, pickupDock, destination, destinationDock, null
+        const character = this.game.characters[Math.trunc(Math.random() * (this.game.characters.length - 1))];
+        const event = ROLES[character.role].replace("{loc}", destination.name);
+
+        (async () => {
+            const h1 = this.game.querySelector(".mission");
+            h1.textContent = `Mission ${this.game.level}`;
+            await animate(h1, "fade");
+            h1.textContent = "";
+        })();
+        // h1.style.animationName = "fade";
+
+        await this.message(
+            this.game.characters[this.game.characters.length - 1].name,
+            // `${event} Find ${mission.character.name} at ${mission.pickup.name} and bring them over there ASAP!`
+            `${event} Get ${character.name} over there ASAP!`
         );
-        this.assignMission(mission);
-        const event = ROLES[mission.character.role].replace("{loc}", mission.destination.name);
 
         const bounds = this.game.fleet.map(ship => ship.bounds);
         const min = Math.min(...bounds.map(bounds => bounds.y));
@@ -466,24 +503,57 @@ class Shuttle {
             nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, "rgba(0, 255, 0, 0.5)");
         console.log("DIST", dist);
 
-        // 3 turns accel + deaccel a 2s
-        const acceltime = 3 * 2 * 2;
-        const acceldist = 3 * 2 * (UI.ENGINE * 2 * 2 / 2);
-        console.log("ACCELDIST", acceldist, acceltime);
-        //                                                                 docking with hin/weg rotation
-        const lower = (dist - acceldist) / UI.TARGET_VELOCITY + acceltime + 2 * (1 + 2 + 1);
-        console.log("LOWER TIME", lower, "s");
+        let time = null;
+        if (this.game.level >= 2) {
+            // 3 turns = 4 accel/deaccel a 2s
+            const acceltime = 2 * 4 * 2;
+            const acceldist = 2 * 4 * (UI.ENGINE * 2 * 2 / 2);
+            console.log("ACCELDIST", acceldist, acceltime);
+            //                                                                 docking with hin/weg rotation
+            const lower = (dist - acceldist) / UI.TARGET_VELOCITY + acceltime + 2 * (1 + 2 + 1);
+            console.log("LOWER TIME", lower, "s");
+
+            const range = 3 - 1;
+            // alternative: 1.5, 1.33
+            const base = Math.pow((1.5 - 1) / range, 1 / 4);
+            const m = Math.pow(base, this.game.level - 2) * range + 1;
+            time = lower * m;
+        }
+
+        // mission design
+        // three point approach:
+        // upper = easy, should be doable by absolute beginners (level 0)
+        // mid   = hard, should be doable only by experienced players (level 4)
+        // lower = impossible, theoretical limit to approach (level inf)
+        // base ** 4 * (upper - lower) + lower = mid
+        // base ** 4 * (upper - lower) = mid - lower
+        // base = ((mid - lower) / (upper - lower)) ** 1/4
+
+        //const upper = lower * 3;
+        //const mid = lower * 1.5; // alternative: 1.33
+        //const base = Math.pow((mid - lower) / (upper - lower), 1 / 4);
+        //const time = Math.pow(base, this.game.level - 1) * (upper - lower) + lower;
+
+        // e.g. mission times for lower 60 mid 90 upper 120 / 180
+        //>>> ((90 - 60) / (120 - 60)) ** (1/4)
+        //0.8408964152537145
+        //>>> ((90 - 60) / (180 - 60)) ** (1/4)
+        //0.7071067811865476
+        //>>> [0.84 ** i * (120 - 60) + 60 for i in [0, 2, 4, 6, 8]]
+        //[120.0, 102.33599999999998, 89.8722816, 81.07788189696, 74.87255346649498]
+        //>>> [0.71 ** i * (180 - 60) + 60 for i in [0, 2, 4, 6, 8]]
+        //[180.0, 120.49199999999999, 90.4940172, 75.37203407051999, 67.74904237494913]
+
 
         //nav(this.body.pos, pickupDock.parts[0].pos, max, "lime", 3);
         //nav(this.body.pos, pickupDock.parts[0].pos, min, "green", 3);
         //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, max, "red");
         //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, min, "orange");
 
-        await this.message(
-            this.game.characters[this.game.characters.length - 1].name,
-            // `${event} Find ${mission.character.name} at ${mission.pickup.name} and bring them over there ASAP!`
-            `${event} Get ${mission.character.name} over there ASAP!`
+        const mission = new Mission(
+            character, pickup, pickupDock, destination, destinationDock, time
         );
+        this.assignMission(mission);
 
         // set mission
 
@@ -496,8 +566,8 @@ class Shuttle {
     }
 
     updateTarget() {
-        const p = this.game.querySelector(".cargo");
-        let target = "No target\n";
+        const p = this.game.querySelector(".shuttle-target");
+        let target = "No target\n ";
         if (this.mission) {
             target = this.mission.target;
             const type = `${target.module.type[0].toUpperCase()}${target.module.type.slice(1)}`;
@@ -506,11 +576,12 @@ class Shuttle {
                 //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
                 `${type} ${target.dock.id} on ${target.module.ship.name}` :
                 `${type} on ${target.module.ship.name}, dock ${target.dock.id}`;
+            //const time = (new Date() - this.mission.t) / 1000;
+            //target += `\n${time.toFixed(1)} s`;
             const time = (new Date() - this.mission.t) / 1000;
-            target += `\n${time.toFixed(2)} s`;
+            target += this.mission.time ? `\n${this.mission.time.toFixed(1)} s` : "\n ";
         }
-        const cargo = this.cargo ? this.cargo.name : "No cargo";
-        p.textContent = `${target}\n${cargo}`;
+        p.textContent = target;
     }
 }
 
@@ -544,7 +615,33 @@ class Mission {
         }
     }
 
-    tick(game) {
+    tick(t, game) {
+        if (this.time !== null) {
+            this.time -= t;
+            if (this.time <= 0) {
+                // animate(this.game.querySelector(".credits"), "fade-in");
+                (async() => {
+                    const credits = game.querySelector(".credits");
+                    //this.game.classList.add("game-over");
+                    //await new Promise(resolve => credits.addEventListener("transitionend", resolve, {once: true}));
+                    credits.querySelector("span").textContent = game.level === 1 ?
+                        `The fleet operated for 1 mission.`:
+                        `The fleet operated for ${game.level} missions.`;
+                    credits.querySelector("small").textContent = CONCLUSIONS[this.character.role];
+                    game.classList.add("credits-rolling");
+                    animate2(credits, "credits-fade-in");
+                    await animate2(game.querySelector(".credits > div"), "credits-roll");
+                    game.classList.add("game-over");
+                    game.classList.add("opening");
+                    game.classList.remove("credits-rolling");
+                    // await transition(this.game, "game-over");
+                    game.pause();
+                    game.init();
+                })();
+                game.shuttle.assignMission(null);
+            }
+        }
+
         game.shuttle.updateTarget();
 
         switch (this.target.id) {
@@ -1047,7 +1144,7 @@ class FleetGenerator {
 class UI extends HTMLElement {
     ship;
     fleet;
-    #docks;
+    #shuttleNode;
     #thrusters;
 
     t;
@@ -1058,7 +1155,7 @@ class UI extends HTMLElement {
     #joints = new Set();
     #annotations = new Map();
 
-    #options = {rotateCam: true, debug: true, cruise: true};
+    #options = {rotateCam: true, debug: false, cruise: true};
     #info;
     #stars;
 
@@ -1073,6 +1170,8 @@ class UI extends HTMLElement {
     paused = true;
     #generator;
     #zoom = false;
+
+    level = 0;
 
     //static ENGINE = 9.80665 * 5; // m / s2
     //static TARGET_VELOCITY = 150; // m / s ; reached in 3s
@@ -1091,6 +1190,12 @@ class UI extends HTMLElement {
         this.#generator = new FleetGenerator();
 
         document.addEventListener("keydown", event => {
+            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Shift", "Enter"].includes(event.key)) {
+                if (this.paused) {
+                    this.play();
+                }
+            }
+
             switch (event.key) {
             case "c":
                 this.#options.rotateCam = !this.#options.rotateCam;
@@ -1101,22 +1206,14 @@ class UI extends HTMLElement {
             case "s":
                 this.#options.cruise = !this.#options.cruise;
                 break;
+            case "m":
+                this.#zoom = !this.#zoom;
+                break;
             case "p":
                 if (this.paused) {
                     this.play();
                 } else {
                     this.pause();
-                }
-                break;
-            case "m":
-                this.#zoom = !this.#zoom;
-                break;
-            case "ArrowLeft":
-            case "ArrowRight":
-            case "ArrowUp":
-            case "ArrowDown":
-                if (this.paused) {
-                    this.play();
                 }
                 break;
             case "Shift":
@@ -1209,19 +1306,23 @@ class UI extends HTMLElement {
     play() {
         this.classList.remove("paused");
         this.classList.remove("opening");
+        this.classList.remove("game-over");
         this.#calibration = null;
         this.paused = false;
+        console.log("PLAYING");
     }
 
     pause() {
         this.classList.add("paused");
         this.paused = true;
+        console.log("PAUSED");
     }
 
     releaseShuttleLink() {
         if (this.shuttle.links.size) {
             for (let joint of this.shuttle.links) {
                 this.#joints.delete(joint);
+                joint.node.remove();
                 if (this.#options.debug) {
                     this.#annotations.get(joint).remove();
                 }
@@ -1240,7 +1341,9 @@ class UI extends HTMLElement {
         setTimeout(() => {
             this.querySelector(".play").addEventListener("click", async () => {
                 await document.body.requestFullscreen();
-                // this.play();
+            });
+            this.querySelector(".back").addEventListener("click", async () => {
+                await document.body.requestFullscreen();
             });
 
             this.querySelector(".standby").addEventListener("click", event => {
@@ -1248,8 +1351,17 @@ class UI extends HTMLElement {
                 event.stopPropagation();
             });
 
+            this.querySelector(".map").addEventListener("click", event => {
+                this.#zoom = !this.#zoom;
+                event.stopPropagation();
+            });
+
             this.querySelector(".release").addEventListener("click", event => {
                 this.releaseShuttleLink();
+                event.stopPropagation();
+            });
+
+            this.querySelector(".credits a").addEventListener("click", event => {
                 event.stopPropagation();
             });
 
@@ -1264,27 +1376,10 @@ class UI extends HTMLElement {
             this.canvas = this.querySelector(".canvas g");
             this.#entityLayer = this.canvas.querySelector(".entities");
             this.#annotationLayer = this.querySelector(".annotations");
-            this.#entities = Array.from(
-                this.querySelectorAll(".object"),
-                path => {
-                    const bbox = path.getBBox();
-                    return new Entity(
-                        // path, Polygon.fromRect(bbox.x, bbox.y, bbox.width, bbox.height), 10000
-                        path,
-                        new Polygon(
-                            // TODO fix hexagon better
-                            [new DOMPoint(-2, -4), new DOMPoint(-2, 0), new DOMPoint(-1, 4),
-                             new DOMPoint(1, 4),
-                             new DOMPoint(2, 0), new DOMPoint(2, -4)]),
-                        10000
-                    );
-                }
-            );
+            this.#shuttleNode = this.querySelector(".shuttle");
+            this.#thrusters = this.#shuttleNode.querySelectorAll(".thruster");
             //this.#entities[0].pos = new Vector(100, 200);
             this.#info = this.querySelector(".info .content");
-            this.ship = this.#entities[this.#entities.length - 1];
-            this.shuttle = new Shuttle(this.ship, this);
-            this.#thrusters = this.ship.node.querySelectorAll(".thruster");
 
             this.#init();
             this.t = new Date();
@@ -1333,25 +1428,6 @@ class UI extends HTMLElement {
         // basic 4 point nav route to compute therotical limit :)
         // (overestimates 2 directly next to each other, but rest is cool)
 
-        // mission design
-        // three point approach:
-        // upper = easy, should be doable by absolute beginners (level 0)
-        // mid   = hard, should be doable only by experienced players (level 4)
-        // lower = impossible, theoretical limit to approach (level inf)
-        // base ** 4 * (upper - lower) + lower = mid
-        // base ** 4 * (upper - lower) = mid - lower
-        // base = ((mid - lower) / (upper - lower)) ** 1/4
-
-        // e.g. mission times for lower 60 mid 90 upper 120 / 180
-        //>>> ((90 - 60) / (120 - 60)) ** (1/4)
-        //0.8408964152537145
-        //>>> ((90 - 60) / (180 - 60)) ** (1/4)
-        //0.7071067811865476
-        //>>> [0.84 ** i * (120 - 60) + 60 for i in [0, 2, 4, 6, 8]]
-        //[120.0, 102.33599999999998, 89.8722816, 81.07788189696, 74.87255346649498]
-        //>>> [0.71 ** i * (180 - 60) + 60 for i in [0, 2, 4, 6, 8]]
-        //[180.0, 120.49199999999999, 90.4940172, 75.37203407051999, 67.74904237494913]
-
         this.#info.textContent = [
             `${this.#fps} FPS`,
             `${Vec.abs(this.ship.velocity).toFixed()} m/s`,
@@ -1398,6 +1474,9 @@ class UI extends HTMLElement {
                 // Apply linear velocity
                 const pos = Vec.add(entity.pos, Vec.mul(entity.velocity, t));
                 entity.update(pos, rot);
+            }
+            for (let joint of this.#joints) {
+                joint.update();
             }
             this.#computeCollisions(t);
         }
@@ -1479,6 +1558,9 @@ class UI extends HTMLElement {
                 // individual cam
                 // `rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px) translate(${entity.pos.x}px, ${entity.pos.y}px) rotate(${entity.rot}rad)`;
         }
+        for (let joint of this.#joints) {
+            joint.node.style.transform = `translate(${joint.position.x}px, ${joint.position.y}px)`;
+        }
 
         // debug
 
@@ -1540,11 +1622,13 @@ class UI extends HTMLElement {
         /*this.ship.pos = [this.ship.pos[0] + this.ship.v[0] * t,
                          this.ship.pos[1] + this.ship.v[1] * t];*/
 
-        for (let ship of this.fleet) {
-            ship.tick(this);
-        }
-        if (this.shuttle.mission) {
-            this.shuttle.mission.tick(this);
+        if (!this.paused) {
+            for (let ship of this.fleet) {
+                ship.tick(this);
+            }
+            if (this.shuttle.mission) {
+                this.shuttle.mission.tick(t, this);
+            }
         }
 
         requestAnimationFrame(() => this.step());
@@ -1937,10 +2021,12 @@ class UI extends HTMLElement {
                         //collision.a, collision.a.matrix.inverse().transformPoint(collision.vertex),
                         //collision.b, collision.b.matrix.inverse().transformPoint(collision.vertex)
                         a, a.matrix.inverse().transformPoint(p),
-                        b, b.matrix.inverse().transformPoint(p)
+                        b, b.matrix.inverse().transformPoint(p),
+                        SVG.make("circle", {r: 0.5, fill: "url(#spark-gradient)"})
                     );
                     this.shuttle.links.add(joint);
                     this.#joints.add(joint);
+                    this.#entityLayer.append(joint.node);
                     this.classList.add("shuttle-linked");
                     continue;
                 }
@@ -2015,11 +2101,55 @@ class UI extends HTMLElement {
         }
     }
 
+    init() {
+        // XXX
+        this.#init();
+    }
+
     #init() {
+        this.#entities = [];
+        this.#joints = new Set();
+        this.#annotations = new Map();
+        this.level = 0;
+
+        this.#entityLayer.textContent = "";
+        this.#annotationLayer.textContent = "";
+
+        //this.#entities = Array.from(
+        //    this.querySelectorAll(".object"),
+        //    path => {
+        //        // const bbox = path.getBBox();
+        //        return new Entity(
+        //            // path, Polygon.fromRect(bbox.x, bbox.y, bbox.width, bbox.height), 10000
+        //            path,
+        //            new Polygon(
+        //                // TODO fix hexagon better
+        //                [new DOMPoint(-2, -4), new DOMPoint(-2, 0), new DOMPoint(-1, 4),
+        //                 new DOMPoint(1, 4),
+        //                 new DOMPoint(2, 0), new DOMPoint(2, -4)]),
+        //            10000
+        //        );
+        //    }
+        //);
+        this.ship = new Entity(
+            this.#shuttleNode,
+            new Polygon(
+                // TODO fix hexagon better
+                [new DOMPoint(-2, -4), new DOMPoint(-2, 0), new DOMPoint(-1, 4),
+                 new DOMPoint(1, 4),
+                 new DOMPoint(2, 0), new DOMPoint(2, -4)]),
+            10000
+        );
+        this.shuttle = new Shuttle(this.ship, this);
+        this.shuttle.updateTarget();
+        this.#entities.push(this.ship);
+        this.#entityLayer.append(this.#shuttleNode);
+
+
         this.fleet = this.#generator.generate();
         const parts = this.fleet.map(ship => ship.parts).flat()
         this.#entities.push(...parts)
-        this.canvas.querySelector(".entities").append(...parts.map(part => part.node));
+        this.#entityLayer.append(...parts.map(part => part.node));
 
         //this.#docks =
         //    this.fleet.map(ship => ship.modules).flat(2).filter(module => module instanceof Dock);
@@ -2160,11 +2290,19 @@ class Joint {
     anchorA;
     entityB;
     anchorB;
+    node;
+    position;
 
-    constructor(entityA, anchorA, entityB, anchorB) {
+    constructor(entityA, anchorA, entityB, anchorB, node) {
         this.entityA = entityA;
         this.anchorA = anchorA;
         this.entityB = entityB;
         this.anchorB = anchorB;
+        this.node = node;
+        this.update();
+    }
+
+    update() {
+        this.position = this.entityA.matrix.transformPoint(this.anchorA);
     }
 };
