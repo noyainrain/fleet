@@ -857,7 +857,8 @@ class FleetGenerator {
                 for (let part of module.parts) {
                     const pos = new DOMPoint(
                         // x * Ship.MODULE_WIDTH - width / 2, y * Ship.MODULE_HEIGHT - height / 2
-                        x * Ship.MODULE_WIDTH - width / 2, height / 2 - y * Ship.MODULE_HEIGHT
+                        x * Ship.MODULE_WIDTH - width / 2 + Ship.MODULE_WIDTH / 2,
+                        height / 2 - y * Ship.MODULE_HEIGHT - Ship.MODULE_HEIGHT / 2
                     );
                     part.update(Vector.add(part.pos, pos), 0);
                 }
@@ -986,16 +987,25 @@ class FleetGenerator {
         // const id = ["A", "B", "C", "D"][Math.trunc(Math.random() * 4)];
         text.textContent = id;
         let hot;
+        let portholes;
         if (port) {
-            hot = Polygon.fromRect(left - 1, bottom + 1.5, 1, 5);
-            lock = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 1.5, width: 1, height: 5});
-            text.style.transform = `translate(${left + 1}px, ${bottom + 4}px) rotate(-90deg) scaleY(-1)`;
+            hot = Polygon.fromRect(left - 1, bottom + 5.5, 1, 5);
+            lock = SVG.make(
+                "rect",
+                {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 5.5, width: 1, height: 5}
+            );
+            text.style.transform = `translate(${left + 1}px, ${bottom + 8}px) rotate(-90deg) scaleY(-1)`;
+            portholes = this.#generatePortholes(new DOMPoint(left + 8, bottom + 4), 2, 2);
         } else {
-            hot = Polygon.fromRect(left + width, bottom + 1.5, 1, 5);
-            lock = SVG.make("rect", {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 1.5, width: 1, height: 5});
-            text.style.transform = `translate(${left + width - 1}px, ${bottom + 4}px) rotate(90deg) scaleY(-1)`;
+            hot = Polygon.fromRect(left + width, bottom + 5.5, 1, 5);
+            lock = SVG.make(
+                "rect",
+                {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 5.5, width: 1, height: 5}
+            );
+            text.style.transform = `translate(${left + width - 1}px, ${bottom + 8}px) rotate(90deg) scaleY(-1)`;
+            portholes = this.#generatePortholes(new DOMPoint(left + width - 16, bottom + 4), 2, 2);
         }
-        g.append(rect, lock, text);
+        g.append(rect, lock, text, portholes);
         return new Dock(
             [new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity)],
             ship, id, hot
@@ -1042,16 +1052,30 @@ class FleetGenerator {
         // TODO for broad ship text next to bridge?
 
         // XXX should be property
-        let text = SVG.make("text", {x: l + 20, y: -(b + 1), fill: context.color});
-        text.textContent = context.name.toUpperCase();
-        g.append(text);
         /*text = SVG.make("text", {x: l + 20, y: -(b + 1 + 2), fill: ship.color});
         text.textContent = "AQUARIUS";
         g.append(text);*/
                 //this.#generatePortholes(new DOMPoint(l, b + 4), 2, 1, {light: 1}),
                 //this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
                 //this.#generatePortholes(new DOMPoint(l + width - 8, b + 4), 2, 1, {light: 1})
-        if (port && starboard) {
+
+        if (starboard) {
+            const y = port ? -(b + 1) : -(b + 4 + 1);
+            let text = SVG.make("text", {x: l + 20, y, fill: context.color});
+            text.textContent = context.name.toUpperCase();
+            g.append(text);
+        }
+
+        if (port) {
+            g.append(
+                this.#generatePortholes(new DOMPoint(l + 8, b + 4), 1, 1, {light: 1}),
+                this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
+                this.#generatePortholes(new DOMPoint(l + 28, b + 4), 1, 1, {light: 1})
+            );
+        }
+
+
+        /*if (port && starboard) {
             g.append(
                 this.#generatePortholes(new DOMPoint(l + 8, b + 4), 1, 1, {light: 1}),
                 this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
@@ -1062,7 +1086,8 @@ class FleetGenerator {
                 this.#generatePortholes(new DOMPoint(port ? l + 20: l + 16, b + 4), 1, 1, {light: 1}),
                 this.#generatePortholes(new DOMPoint(port ? l + 24: l, b + 4), 1, 1, {width: 14, light: 1}),
             );
-        }
+        }*/
+
         // TODO better hitbox
         return new Module(
             "bridge", [new Entity(g, Polygon.fromRect(l, b, width, height), Infinity)], context
@@ -1083,24 +1108,42 @@ class FleetGenerator {
                 Polygon.fromRect(-4, -10, 8, 20), Infinity
             );
         }
+
+        const thruster = SVG.make("rect", {x: -10, y: -10, width: 20, height: 4, fill: "url(#thruster-gradient)"});
+        parts.push(new Entity(thruster, Polygon.fromRect(-10, -10, 20, 4), Infinity));
+
         const w = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
         const h = 4 * Ship.UNIT + 2 * Ship.BLEED;
-        const rect = SVG.make(
-            "rect",
+        const l = -w / 2;
+        const b = -1.5 * Ship.UNIT - Ship.BLEED;
+        const leftCorner = port ?
+            `L ${l + 1} ${b} A 1 1 0 0 0 ${l} ${b + 1}` : `L ${l} ${b}`;
+        const rightCorner = starboard ?
+            `L ${l + w} ${b + 1} A 1 1 0 0 0 ${l + w - 1} ${b}` : `L ${l + w} ${b}`;
+        const path = SVG.make(
+            "path",
             {
                 class: "ship-engine-bow",
-                /*x: -Ship.MODULE_WIDTH / 2 - Ship.BLEED,
-                y: -Ship.MODULE_HEIGHT / 2 - Ship.BLEED + Ship.UNIT,
-                width: Ship.MODULE_WIDTH + 2 * Ship.BLEED,
-                height: 4 * Ship.UNIT + 2 * Ship.BLEED,*/
-                x: -20.1,
-                y: -6.1,
-                width: 40.2,
-                height: 16.2
+                d: `M ${l} ${b + h} L ${l + w} ${b + h} ${rightCorner} ${leftCorner} Z`
             }
         );
-        parts.push(new Entity(rect, Polygon.fromRect(-20, -6, 40, 16), Infinity));
-        if (port) {
+
+        //const rect = SVG.make(
+        //    "rect",
+        //    {
+        //        class: "ship-engine-bow",
+        //        /*x: -Ship.MODULE_WIDTH / 2 - Ship.BLEED,
+        //        y: -Ship.MODULE_HEIGHT / 2 - Ship.BLEED + Ship.UNIT,
+        //        width: Ship.MODULE_WIDTH + 2 * Ship.BLEED,
+        //        height: 4 * Ship.UNIT + 2 * Ship.BLEED,*/
+        //        x: -20.1,
+        //        y: -6.1,
+        //        width: 40.2,
+        //        height: 16.2
+        //    }
+        //);
+        parts.push(new Entity(path, Polygon.fromRect(-20, -6, 40, 16), Infinity));
+        /*if (port) {
             const thruster = generateThruster();
             thruster.update(new DOMPoint(-14, 0), 0);
             parts.push(thruster);
@@ -1109,7 +1152,7 @@ class FleetGenerator {
             const thruster = generateThruster();
             thruster.update(new DOMPoint(14, 0), 0);
             parts.push(thruster);
-        }
+        }*/
         return new Module("engine", parts, ship);
     }
 
@@ -2150,6 +2193,10 @@ class UI extends HTMLElement {
         const parts = this.fleet.map(ship => ship.parts).flat()
         this.#entities.push(...parts)
         this.#entityLayer.append(...parts.map(part => part.node));
+
+        const minY = Math.min(...this.fleet.map(ship => ship.bounds.y).flat());
+        console.log("MIN Y", minY);
+        this.shuttle.body.update(new DOMPoint(0, minY), 0);
 
         //this.#docks =
         //    this.fleet.map(ship => ship.modules).flat(2).filter(module => module instanceof Dock);
