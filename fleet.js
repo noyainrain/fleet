@@ -1233,7 +1233,7 @@ class UI extends HTMLElement {
         this.#generator = new FleetGenerator();
 
         document.addEventListener("keydown", event => {
-            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Shift", "Enter"].includes(event.key)) {
+            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "d", "w", "s", "Shift", "Enter"].includes(event.key)) {
                 if (this.paused) {
                     this.play();
                 }
@@ -1243,10 +1243,10 @@ class UI extends HTMLElement {
             case "c":
                 this.#options.rotateCam = !this.#options.rotateCam;
                 break;
-            case "d":
+            case "0":
                 this.#options.debug = !this.#options.debug;
                 break;
-            case "s":
+            case "9":
                 this.#options.cruise = !this.#options.cruise;
                 break;
             case "m":
@@ -1277,16 +1277,16 @@ class UI extends HTMLElement {
                 }
 
                 let x, y;
-                if (this.#keys.has("ArrowLeft")) {
+                if (this.#keys.has("ArrowLeft") || this.#keys.has("a")) {
                     x = 1;
-                } else if (this.#keys.has("ArrowRight")) {
+                } else if (this.#keys.has("ArrowRight") || this.#keys.has("d")) {
                     x = -1;
                 } else {
                     x = 0;
                 }
-                if (this.#keys.has("ArrowUp")) {
+                if (this.#keys.has("ArrowUp") || this.#keys.has("w")) {
                     y = 1;
-                } else if (this.#keys.has("ArrowDown")) {
+                } else if (this.#keys.has("ArrowDown") || this.#keys.has("s")) {
                     y = -1;
                 } else {
                     y = 0;
