@@ -82,6 +82,7 @@
                             <!-- best -->
 
                             <!--<path d="M -2 2 A 2 2 0 0 0 2 2 L 2 -4 L -2 -4 Z" transform="translate(0, 0)"/>
+
                             <path d="M -2 1 A 2 3 0 0 0 2 1 L 2 -4 L -2 -4 Z" transform="translate(5, 0)"/>
                             <path d="M -2 0 A 2 4 0 0 0 2 0 L 2 -4 L -2 -4 Z" transform="translate(10, 0)"/>
                             <path d="M -2 -1 A 2 5 0 0 0 2 -1 L 2 -4 L -2 -4 Z" transform="translate(15, 0)"/>
@@ -139,11 +140,12 @@
                                 class="thruster thruster-en" href="#engine"
                                 transform="translate(1.73, 1.5) rotate(270)"
                             />
+
                             <path class="wings" d="M -2 -4 L -2.5 -3.5 L -2.5 -0.5 L -2 0 L 2 0 L 2.5 -0.5 L 2.5 -3.5 L 2 -4 Z" />
                             <!--<rect class="wings" x="-2" y="-4" width="4" height="6" />-->
-                            <path class="body" d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" />
-                            <path class="window" d="M -1.73 2 A 2 4 0 0 0 1.73 2 A 2 1 0 0 1 -1.73 2" />
-                            <rect class="lock" x="-1.5" y="-4.5" width="3" height="0.5" />
+                            <path class="body" d="M -2 -4 L -2 0 A 2 4 0 0 0 2 0 L 2 -4 Z" fill="#ccc" />
+                            <path class="window" d="M -1.73 2 A 2 4 0 0 0 1.73 2 A 2 1 0 0 1 -1.73 2" fill="#4c6c4c" />
+                            <rect class="lock" x="-1.5" y="-4.5" width="3" height="0.5" fill="url(#lock-gradient)" />
 
 
                             <!--<rect class="lock" x="-1.5" y="-4.5" width="3" height="1" rx="0.5" ry="0.5" />-->
@@ -187,6 +189,8 @@
                     <g class="annotations"></g>
                 </g>
             </svg>
+
+            <svg class="navigation layer"></svg>
 
             <div class="shuttle-state hud">
                 <p class="shuttle-target"></p>
@@ -242,6 +246,7 @@
                         <path d="M 1 1 L 63 32 L 1 63 Z" />
                     </svg>--->
                 </button>
+                <p class="version x-end y-end">v0.3</p>
             </div>
 
             <div class="credits layer">
@@ -318,11 +323,16 @@
                     overflow: hidden;
                 }
 
-                fleet-ui svg text {
+                fleet-ui .canvas text {
                     font-size: calc(2px * 3 / 2);
                     font-weight: bold;
                     font-weight: 900;
                     transform: scaleY(-1);
+                    text-anchor: middle;
+                }
+
+                fleet-ui .navigation text {
+                    fill: currentColor;
                     text-anchor: middle;
                 }
 
@@ -739,7 +749,6 @@
 
                 fleet-ui .shuttle {
                     /*fill: silver;*/
-                    fill: #ccc;
                 }
 
                 fleet-ui .shuttle .window {
@@ -841,6 +850,11 @@
                 xfleet-ui .starsopt,
                 xfleet-ui .canvas > g {
                     will-change: transform;
+                }
+
+                fleet-ui .poi {
+                    stroke: currentColor;
+                    fill: hsla(120, 100%, 10%, 0.5);
                 }
             </style>
 

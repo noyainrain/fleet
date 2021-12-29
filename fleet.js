@@ -6,7 +6,7 @@ addEventListener("error", event => {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-import {animate, animate2, transition} from "./fleet/util.js";
+import {Box, animate, animate2, transition} from "./fleet/util.js?fh";
 import {Entity, Polygon, Vector} from "./fleet/core.js?lxol";
 import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
 
@@ -32,6 +32,16 @@ const CONCLUSIONS = {
     Logistician: "Then there was some toxic cargo.",
     Scientist: "Then there was an outbreak."
 };
+
+const POIS = {
+    Captain: "Emergency meeting",
+    Navigator: "Urgent meeting",
+    Engineer: "Technical problem",
+    Doctor: "Medical emergency",
+    Guard: "Offense",
+    Logistician: "Problematic cargo",
+    Scientist: "Bad experiment"
+}
 
 /*class Vector {
     x;
@@ -300,10 +310,15 @@ class Shuttle {
     links = new Set();
     cargo = null;
     #message = null;
+    #navigation;
+    pois = new Map();
+    #missionPOI = null;
+    #fleetPOI = null;
 
     constructor(body, game) {
         this.body = body;
         this.game = game;
+        this.#navigation = this.game.querySelector(".navigation");
     }
 
     async dock(cargo = null) {
@@ -582,6 +597,69 @@ class Shuttle {
             target += this.mission.time ? `\n${this.mission.time.toFixed(1)} s` : "\n ";
         }
         p.textContent = target;
+
+        if (this.#missionPOI !== (this.mission?.poi ?? null)) {
+            console.log("MP UPDATE");
+            if (this.#missionPOI) {
+                console.log("REMOVING OLD MP")
+                this.removePOI(this.#missionPOI);
+                this.#missionPOI = null;
+            }
+            if (this.mission) {
+                console.log("ADDING NEW MP");
+                this.#missionPOI = this.mission.poi;
+                this.addPOI(this.#missionPOI);
+            }
+        }
+    }
+
+    addPOI(poi) {
+        const node = SVG.make("g");
+        const text = SVG.make("text", {y: 32});
+        text.textContent = poi.label;
+        node.append(SVG.make("path", {class: "poi", d: "M 0 0 L -8 16 L 8 16 Z"}), text);
+        this.pois.set(poi, node);
+        this.#navigation.append(node);
+    }
+
+    removePOI(poi) {
+        const node = this.pois.get(poi);
+        node.remove();
+        this.pois.delete(poi);
+    }
+
+    tick(t) {
+        const bounds = document.documentElement.getBoundingClientRect()
+        const center = new DOMPoint(bounds.width / 2, bounds.height / 2);
+        const r = Math.min(bounds.width, bounds.height) / 2 - 2 * 8;
+        let smatrix = this.game.canvas.getScreenCTM();
+        let matrix = new DOMMatrix([smatrix.a, smatrix.b, smatrix.c, smatrix.d, smatrix.e, smatrix.f]);
+        for (let [poi, node] of this.pois.entries()) {
+            // console.log("POI", poi, poi.body, poi.body.pos);
+            let p = poi.body instanceof DOMPoint ? poi.body : poi.body.pos;
+            p = matrix.transformPoint(p);
+            const v = Vector.sub(p, center);
+            //console.log(this.game.querySelector(".canvas").createSVGPoint().matrixTransform(smatrix));
+            //console.log(p);
+            const dist = Vector.abs(v);
+            const dir = Vector.norm(v);
+            const angle = Math.atan2(dir.y, dir.x) + Math.PI / 2;
+            // console.log("DISTR", dist, r, dist > r);
+            if (dist > r) {
+                p = Vector.add(center, Vector.mul(dir, r));
+            }
+            node.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${angle}rad)`;
+        }
+
+        const fleetBounds = Box.grow(this.game.fleetBounds, 75 / 2);
+        if (!this.#fleetPOI && !Box.contains(fleetBounds, this.body.pos)) {
+            this.#fleetPOI = new POI(new DOMPoint(0, 0), "Fleet");
+            this.addPOI(this.#fleetPOI);
+        }
+        if (this.#fleetPOI && Box.contains(fleetBounds, this.body.pos)) {
+            this.removePOI(this.#fleetPOI);
+            this.#fleetPOI = null;
+        }
     }
 }
 
@@ -597,8 +675,19 @@ class Shuttle {
     }
 }*/
 
+class POI {
+    body;
+    label;
+
+    constructor(body, label) {
+        this.body = body;
+        this.label = label;
+    }
+}
+
 class Mission {
     target;
+    poi;
 
     constructor(character, pickup, pickupDock, destination, destinationDock, time) {
         this.character = character;
@@ -610,8 +699,10 @@ class Mission {
         this.t = new Date();
         if (pickup) {
             this.target = new Target("pickup", pickup, pickupDock);
+            this.poi = new POI(pickupDock.parts[0], character.name);
         } else {
             this.target = new Target("destination", destination, destinationDock);
+            this.poi = new POI(destinationDock.parts[0], "Target");
         }
     }
 
@@ -648,6 +739,7 @@ class Mission {
         case "pickup":
             if (game.shuttle.cargo) {
                 this.target = new Target("destination", this.destination, this.destination.findNearestDock());
+                this.poi = new POI(this.destinationDock.parts[0], POIS[this.character.role]);
                 game.shuttle.updateTarget();
                 game.shuttle.message(this.character.name, "Good to see you!");
             }
@@ -1672,6 +1764,7 @@ class UI extends HTMLElement {
             if (this.shuttle.mission) {
                 this.shuttle.mission.tick(t, this);
             }
+            this.shuttle.tick(t);
         }
 
         requestAnimationFrame(() => this.step());
@@ -2193,6 +2286,17 @@ class UI extends HTMLElement {
         const parts = this.fleet.map(ship => ship.parts).flat()
         this.#entities.push(...parts)
         this.#entityLayer.append(...parts.map(part => part.node));
+
+        const shipBounds = this.fleet.map(ship => ship.bounds).flat();
+        const min = new DOMPoint(
+            Math.min(...shipBounds.map(bounds => bounds.x)),
+            Math.min(...shipBounds.map(bounds => bounds.y))
+        );
+        const max = new DOMPoint(
+            Math.max(...shipBounds.map(bounds => bounds.x + bounds.width)),
+            Math.max(...shipBounds.map(bounds => bounds.y + bounds.height))
+        );
+        this.fleetBounds = new DOMRect(min.x, min.y, max.x - min.x, max.y - min.y);
 
         const minY = Math.min(...this.fleet.map(ship => ship.bounds.y).flat());
         console.log("MIN Y", minY);
