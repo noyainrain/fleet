@@ -1,5 +1,11 @@
 {
+    "scripts": {
+        "lint": "eslint fleet/simulation.js"
+    },
     "dependencies": {
         "@fontsource/jost": "^4.5"
+    },
+    "devDependencies": {
+        "eslint": "^8.6"
     }
 }

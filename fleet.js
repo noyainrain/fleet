@@ -4,11 +4,11 @@ addEventListener("error", event => {
     document.body.style.whiteSpace = "pre";
 });
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-import {Box, animate, animate2, transition} from "./fleet/util.js?fh";
-import {Entity, Polygon, Vector} from "./fleet/core.js?lxol";
+import "./fleet/simulation.js";
+import {Box, Vector, animate, animate2, createSVGElement, transition} from "./fleet/util.js?fh";
+import {Polygon} from "./fleet/core.js?lxol";
 import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
+import {Body} from "./fleet/simulation.js";
 
 const ROLES = {
     Captain: "An emergency meeting has been called at {loc}.",
@@ -72,37 +72,6 @@ const POIS = {
         return this.mul(1 / this.abs());
     }
 }*/
-
-class SVG {
-    static makeLine(p1, p2) {
-        const line = document.createElementNS(SVG_NS, "line");
-        line.setAttribute("x1", p1.x);
-        line.setAttribute("y1", p1.y);
-        line.setAttribute("x2", p2.x);
-        line.setAttribute("y2", p2.y);
-        return line;
-    }
-
-    static makeRect(p, width, height, {fill} = {}) {
-        const rect = document.createElementNS(SVG_NS, "rect");
-        rect.setAttribute("x", p.x);
-        rect.setAttribute("y", p.y);
-        rect.setAttribute("width", width);
-        rect.setAttribute("height", height);
-        if (fill) {
-            rect.style.fill = fill;
-        }
-        return rect;
-    }
-
-    static make(tagName, attributes = {}) {
-        const node = document.createElementNS(SVG_NS, tagName);
-        for (let [name, value] of Object.entries(attributes)) {
-            node.setAttribute(name, value);
-        }
-        return node;
-    }
-};
 
 const Vec = Vector;
 
@@ -489,10 +458,10 @@ class Shuttle {
                 let edges = Array.from(graph.entries())
                     .map(([key, value]) => value.map(p => [key, p])).flat();
                 edges = edges.map(
-                    ([p1, p2]) => SVG.make("line", {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: color})
+                    ([p1, p2]) => createSVGElement("line", {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: color})
                 )
                 console.log("EDGES", edges);
-                const g = SVG.make("g");
+                const g = createSVGElement("g");
                 g.append(...edges);
                 this.game.annotate("nav-grid" + color, g);
 
@@ -500,7 +469,7 @@ class Shuttle {
                     `M ${path[0].x} ${path[0].y}`,
                     ...path.slice(1).map(p => `L ${p.x} ${p.y}`)
                 ].join(" ");
-                this.game.annotate("nav" + color, SVG.make("path", {d, stroke: color, "stroke-width": 4}));
+                this.game.annotate("nav" + color, createSVGElement("path", {d, stroke: color, "stroke-width": 4}));
             }
 
             return dist;
@@ -510,12 +479,12 @@ class Shuttle {
             //        `M ${points[0].x} ${points[0].y}`,
             //        ...points.slice(1).map(p => `L ${p.x} ${p.y}`)
             //    ].join(" ");
-            //    this.game.annotate("nav" + color, SVG.make("path", {d, stroke: color, "stroke-width": w}));
+            //    this.game.annotate("nav" + color, createSVGElement("path", {d, stroke: color, "stroke-width": w}));
             //}
         }
 
-        const dist = nav(this.body.pos, pickupDock.parts[0].pos, "rgba(255, 0, 0, 0.5)") +
-            nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, "rgba(0, 255, 0, 0.5)");
+        const dist = nav(this.body.position, pickupDock.parts[0].position, "rgba(255, 0, 0, 0.5)") +
+            nav(pickupDock.parts[0].position, destinationDock.parts[0].position, "rgba(0, 255, 0, 0.5)");
         console.log("DIST", dist);
 
         let time = null;
@@ -560,10 +529,10 @@ class Shuttle {
         //[180.0, 120.49199999999999, 90.4940172, 75.37203407051999, 67.74904237494913]
 
 
-        //nav(this.body.pos, pickupDock.parts[0].pos, max, "lime", 3);
-        //nav(this.body.pos, pickupDock.parts[0].pos, min, "green", 3);
-        //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, max, "red");
-        //nav(pickupDock.parts[0].pos, destinationDock.parts[0].pos, min, "orange");
+        //nav(this.body.position, pickupDock.parts[0].position, max, "lime", 3);
+        //nav(this.body.position, pickupDock.parts[0].position, min, "green", 3);
+        //nav(pickupDock.parts[0].position, destinationDock.parts[0].position, max, "red");
+        //nav(pickupDock.parts[0].position, destinationDock.parts[0].position, min, "orange");
 
         const mission = new Mission(
             character, pickup, pickupDock, destination, destinationDock, time
@@ -614,10 +583,10 @@ class Shuttle {
     }
 
     addPOI(poi) {
-        const node = SVG.make("g");
-        const text = SVG.make("text", {y: 32});
+        const node = createSVGElement("g");
+        const text = createSVGElement("text", {y: 32});
         text.textContent = poi.label;
-        node.append(SVG.make("path", {class: "poi", d: "M 0 0 L -8 16 L 8 16 Z"}), text);
+        node.append(createSVGElement("path", {class: "poi", d: "M 0 0 L -8 16 L 8 16 Z"}), text);
         this.pois.set(poi, node);
         this.#navigation.append(node);
     }
@@ -635,8 +604,8 @@ class Shuttle {
         let smatrix = this.game.canvas.getScreenCTM();
         let matrix = new DOMMatrix([smatrix.a, smatrix.b, smatrix.c, smatrix.d, smatrix.e, smatrix.f]);
         for (let [poi, node] of this.pois.entries()) {
-            // console.log("POI", poi, poi.body, poi.body.pos);
-            let p = poi.body instanceof DOMPoint ? poi.body : poi.body.pos;
+            // console.log("POI", poi, poi.body, poi.body.position);
+            let p = poi.body instanceof DOMPoint ? poi.body : poi.body.position;
             p = matrix.transformPoint(p);
             const v = Vector.sub(p, center);
             //console.log(this.game.querySelector(".canvas").createSVGPoint().matrixTransform(smatrix));
@@ -652,11 +621,11 @@ class Shuttle {
         }
 
         const fleetBounds = Box.grow(this.game.fleetBounds, 75 / 2);
-        if (!this.#fleetPOI && !Box.contains(fleetBounds, this.body.pos)) {
+        if (!this.#fleetPOI && !Box.contains(fleetBounds, this.body.position)) {
             this.#fleetPOI = new POI(new DOMPoint(0, 0), "Fleet");
             this.addPOI(this.#fleetPOI);
         }
-        if (this.#fleetPOI && Box.contains(fleetBounds, this.body.pos)) {
+        if (this.#fleetPOI && Box.contains(fleetBounds, this.body.position)) {
             this.removePOI(this.#fleetPOI);
             this.#fleetPOI = null;
         }
@@ -897,7 +866,7 @@ class FleetGenerator {
             for (let row of ship.modules) {
                 for (let module of row) {
                     for (let part of module.parts) {
-                        part.update(Vector.add(part.pos, new DOMPoint(pos, 0)), 0);
+                        part.update(Vector.add(part.position, new DOMPoint(pos, 0)), 0);
                     }
                 }
             }
@@ -952,7 +921,7 @@ class FleetGenerator {
                         x * Ship.MODULE_WIDTH - width / 2 + Ship.MODULE_WIDTH / 2,
                         height / 2 - y * Ship.MODULE_HEIGHT - Ship.MODULE_HEIGHT / 2
                     );
-                    part.update(Vector.add(part.pos, pos), 0);
+                    part.update(Vector.add(part.position, pos), 0);
                 }
                 row.push(module);
             }
@@ -996,7 +965,7 @@ class FleetGenerator {
         const decks = 5;
 
         // const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
-        const g = SVG.make("g", {class: "ship-quarters"});
+        const g = createSVGElement("g", {class: "ship-quarters"});
 
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
         g.append(rect);
@@ -1027,21 +996,21 @@ class FleetGenerator {
                 // const on = Math.random() <= 2 / 3 ? "ship-window-on" : "";
                 const on = Math.random() <= 0.5 ? "ship-window-on" : "";
                 //g.append(
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1}),
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 2.25, y: bottom + 4 * y + 1})
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1}),
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 2.25, y: bottom + 4 * y + 1})
                 //);
                 //g.append(
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5}),
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 2.5, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5}),
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 2.5, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
                 //);
                 //g.append(
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 2, height: 1, x: left + 4 * x + 1, y: bottom + 4 * y + 1.5, rx: 0.25, ry: 0.25})
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 2, height: 1, x: left + 4 * x + 1, y: bottom + 4 * y + 1.5, rx: 0.25, ry: 0.25})
                 //);
                 g.append(
-                    SVG.make("rect", {class: `ship-window ${on}`, width: 2, height: 1.5, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.25, ry: 0.25})
+                    createSVGElement("rect", {class: `ship-window ${on}`, width: 2, height: 1.5, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.25, ry: 0.25})
                 );
                 //g.append(
-                //    SVG.make("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 2 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
+                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 2 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
                 //);
                 //w.setAttribute("width", 2);
                 //w.setAttribute("height", 1);
@@ -1054,9 +1023,9 @@ class FleetGenerator {
             }
         }*/
 
-        const entity = new Entity(g, Polygon.fromRect(left, bottom, width, height), Infinity);
+        const entity = new Body(Polygon.fromRect(left, bottom, width, height), Infinity, g);
         //entity.update(new DOMPoint(100, 100), 0);
-        //entity.pos = new Vector(-left, 0);
+        //entity.position = new Vector(-left, 0);
         // entity.v = new Vector(0, 10);
         // entity.vRot = Math.PI / 8;
         return new Module("quarters", [entity], ship);
@@ -1069,10 +1038,10 @@ class FleetGenerator {
         const height = Ship.MODULE_HEIGHT + 0.2;
         const left = -width / 2;
         const bottom = -height / 2;
-        const g = SVG.make("g", {class: "ship-dock"});
-        const rect = SVG.make("rect", {fill: "#ccc", x: -width / 2, y: -height / 2, width, height});
+        const g = createSVGElement("g", {class: "ship-dock"});
+        const rect = createSVGElement("rect", {fill: "#ccc", x: -width / 2, y: -height / 2, width, height});
         let lock;
-        const text = SVG.make("text", {fill: ship.color});
+        const text = createSVGElement("text", {fill: ship.color});
         const id = String.fromCharCode(
             "A".charCodeAt(0) + ship.modules.flat().filter(module => module.type === "dock").length
         );
@@ -1082,7 +1051,7 @@ class FleetGenerator {
         let portholes;
         if (port) {
             hot = Polygon.fromRect(left - 1, bottom + 5.5, 1, 5);
-            lock = SVG.make(
+            lock = createSVGElement(
                 "rect",
                 {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 5.5, width: 1, height: 5}
             );
@@ -1090,7 +1059,7 @@ class FleetGenerator {
             portholes = this.#generatePortholes(new DOMPoint(left + 8, bottom + 4), 2, 2);
         } else {
             hot = Polygon.fromRect(left + width, bottom + 5.5, 1, 5);
-            lock = SVG.make(
+            lock = createSVGElement(
                 "rect",
                 {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 5.5, width: 1, height: 5}
             );
@@ -1099,7 +1068,7 @@ class FleetGenerator {
         }
         g.append(rect, lock, text, portholes);
         return new Dock(
-            [new Entity(g, Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity)],
+            [new Body(Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity, g)],
             ship, id, hot
         );
     }
@@ -1115,9 +1084,9 @@ class FleetGenerator {
         const rightCorner = starboard ?
             `L ${l + width - 1} ${b + height} A 1 1 0 0 0 ${l + width} ${b + height - 1}` :
             `L ${l + width} ${b + height}`;
-        const g = SVG.make("g", {class: "ship-bow"});
+        const g = createSVGElement("g", {class: "ship-bow"});
         g.append(
-            SVG.make(
+            createSVGElement(
                 "rect",
                 {
                     class: "ship-body",
@@ -1128,7 +1097,7 @@ class FleetGenerator {
                     // d: `M ${l} ${b} L ${l} ${rightCorner} L ${l + width} ${b} Z`
                 }
             ),
-            SVG.make(
+            createSVGElement(
                 "path",
                 {
                     class: "ship-engine-bow",
@@ -1144,7 +1113,7 @@ class FleetGenerator {
         // TODO for broad ship text next to bridge?
 
         // XXX should be property
-        /*text = SVG.make("text", {x: l + 20, y: -(b + 1 + 2), fill: ship.color});
+        /*text = createSVGElement("text", {x: l + 20, y: -(b + 1 + 2), fill: ship.color});
         text.textContent = "AQUARIUS";
         g.append(text);*/
                 //this.#generatePortholes(new DOMPoint(l, b + 4), 2, 1, {light: 1}),
@@ -1153,7 +1122,7 @@ class FleetGenerator {
 
         if (starboard) {
             const y = port ? -(b + 1) : -(b + 4 + 1);
-            let text = SVG.make("text", {x: l + 20, y, fill: context.color});
+            let text = createSVGElement("text", {x: l + 20, y, fill: context.color});
             text.textContent = context.name.toUpperCase();
             g.append(text);
         }
@@ -1182,7 +1151,7 @@ class FleetGenerator {
 
         // TODO better hitbox
         return new Module(
-            "bridge", [new Entity(g, Polygon.fromRect(l, b, width, height), Infinity)], context
+            "bridge", [new Body(Polygon.fromRect(l, b, width, height), Infinity, g)], context
         );
     }
 
@@ -1191,18 +1160,18 @@ class FleetGenerator {
         // TODO: slimmer design
         const parts = [];
         function generateThruster() {
-            return new Entity(
-                SVG.make(
+            return new Body(
+                Polygon.fromRect(-4, -10, 8, 20), Infinity,
+                createSVGElement(
                     "path",
                     // {class: "ship-engine-bow", d: "M -4 -10 L -4 8 A 4 2 0 0 0 4 8 L 4 -10 Z"}
                     {class: "ship-engine-bow", d: "M -10 -10 L -10 8 A 4 2 0 0 0 -6 10 L 6 10 A 4 2 0 0 0 10 8 L 10 -10 Z"}
-                ),
-                Polygon.fromRect(-4, -10, 8, 20), Infinity
+                )
             );
         }
 
-        const thruster = SVG.make("rect", {x: -10, y: -10, width: 20, height: 4, fill: "url(#thruster-gradient)"});
-        parts.push(new Entity(thruster, Polygon.fromRect(-10, -10, 20, 4), Infinity));
+        const thruster = createSVGElement("rect", {x: -10, y: -10, width: 20, height: 4, fill: "url(#thruster-gradient)"});
+        parts.push(new Body(Polygon.fromRect(-10, -10, 20, 4), Infinity, thruster));
 
         const w = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
         const h = 4 * Ship.UNIT + 2 * Ship.BLEED;
@@ -1212,7 +1181,7 @@ class FleetGenerator {
             `L ${l + 1} ${b} A 1 1 0 0 0 ${l} ${b + 1}` : `L ${l} ${b}`;
         const rightCorner = starboard ?
             `L ${l + w} ${b + 1} A 1 1 0 0 0 ${l + w - 1} ${b}` : `L ${l + w} ${b}`;
-        const path = SVG.make(
+        const path = createSVGElement(
             "path",
             {
                 class: "ship-engine-bow",
@@ -1220,7 +1189,7 @@ class FleetGenerator {
             }
         );
 
-        //const rect = SVG.make(
+        //const rect = createSVGElement(
         //    "rect",
         //    {
         //        class: "ship-engine-bow",
@@ -1234,7 +1203,7 @@ class FleetGenerator {
         //        height: 16.2
         //    }
         //);
-        parts.push(new Entity(path, Polygon.fromRect(-20, -6, 40, 16), Infinity));
+        parts.push(new Body(Polygon.fromRect(-20, -6, 40, 16), Infinity, path));
         /*if (port) {
             const thruster = generateThruster();
             thruster.update(new DOMPoint(-14, 0), 0);
@@ -1257,7 +1226,7 @@ class FleetGenerator {
                 }
                 const on = Math.random() <= light ? "ship-window-on" : "";
                 fragment.append(
-                    SVG.make(
+                    createSVGElement(
                         "rect",
                         {
                             class: `ship-window ${on}`,
@@ -1294,9 +1263,6 @@ class UI extends HTMLElement {
     #info;
     #stars;
 
-    #second;
-    #frames = 0;
-    #fps = 0;
     #annotationLayer;
     #entityLayer;
 
@@ -1513,25 +1479,26 @@ class UI extends HTMLElement {
             this.#annotationLayer = this.querySelector(".annotations");
             this.#shuttleNode = this.querySelector(".shuttle");
             this.#thrusters = this.#shuttleNode.querySelectorAll(".thruster");
-            //this.#entities[0].pos = new Vector(100, 200);
+            //this.#entities[0].position = new Vector(100, 200);
             this.#info = this.querySelector(".info .content");
+            this.world = this.querySelector("fleet-world");
 
             this.#init();
-            this.t = new Date();
-            this.#second = this.t;
-            requestAnimationFrame(() => this.step());
+            this.world.addEventListener("tick", event => this.step(event.detail.t));
+            //requestAnimationFrame(() => this.step());
+
             //this.play();
 
             /*
             // colortest
             this.canvas.append(
-                SVG.make("rect", {x: "-60", y: "-20", width: "110", height: "60", fill: "#fff"}),
-                SVG.make("rect", {x: "-20", y: "-20", width: "110", height: "60", fill: "#808080"}),
-                SVG.make("rect", {x: "20", y: "-20", width: "110", height: "60", fill: "#000"})
+                createSVGElement("rect", {x: "-60", y: "-20", width: "110", height: "60", fill: "#fff"}),
+                createSVGElement("rect", {x: "-20", y: "-20", width: "110", height: "60", fill: "#808080"}),
+                createSVGElement("rect", {x: "20", y: "-20", width: "110", height: "60", fill: "#000"})
             );
             for (let i = 0; i < 16; i++) {
                 for (let x = 0; x < 11; x++) {
-                    const text = SVG.make("text", {x: -59 + x * 10, y: 19 - i * 3});
+                    const text = createSVGElement("text", {x: -59 + x * 10, y: 19 - i * 3});
                     // ccc 80%, 666 40%
                     text.style.fill = `hsl(${360 / 16 * i}, 50%, 50%)`;
                     // text.style.fill = `hsl(${360 / 16 * i}, ${x * 10}%, 50%)`;
@@ -1544,27 +1511,16 @@ class UI extends HTMLElement {
         }, 0);
     }
 
-    step() {
+    step(t) {
         //this.#stars.firstElementChild.style.transform = `rotate(${new Date().valueOf() / 10000}rad)`;
         //requestAnimationFrame(() => this.step());
         //return;
-
-        const now = new Date();
-        const t = (now - this.t) / 1000;
-        this.t = now;
-
-        this.#frames++;
-        if (this.t >= this.#second) {
-            this.#fps = this.#frames;
-            this.#frames = 0;
-            this.#second = new Date(this.#second.valueOf() + 1000);
-        }
 
         // basic 4 point nav route to compute therotical limit :)
         // (overestimates 2 directly next to each other, but rest is cool)
 
         this.#info.textContent = [
-            `${this.#fps} FPS`,
+            `${this.world.frameRate} FPS`,
             `${Vec.abs(this.ship.velocity).toFixed()} m/s`,
             `${Math.abs(this.ship.spin * 180 / Math.PI).toFixed()} °/s`,
             // `${this.#abg}`,
@@ -1603,13 +1559,16 @@ class UI extends HTMLElement {
         if (!this.paused) {
             this.#simulateEngines(t);
             this.#simulateConstraints(t);
+
+            // XXX copied
             for (let entity of this.#entities) {
                 // Apply rotational velocity
-                const rot = entity.rot + entity.spin * t;
+                const rot = entity.orientation + entity.spin * t;
                 // Apply linear velocity
-                const pos = Vec.add(entity.pos, Vec.mul(entity.velocity, t));
+                const pos = Vec.add(entity.position, Vec.mul(entity.velocity, t));
                 entity.update(pos, rot);
             }
+
             for (let joint of this.#joints) {
                 joint.update();
             }
@@ -1638,13 +1597,13 @@ class UI extends HTMLElement {
         } else {
 
         // XXX
-        //this.ship.rot += Math.PI / 100;
+        //this.ship.orientation += Math.PI / 100;
 
         // camera
-        //const rot = entity.rot - this.ship.rot;
+        //const rot = entity.orientation - this.ship.orientation;
         // const camPos = new Vector();
-        // const pos = entity.pos; // entity.pos.sub(this.ship.pos);
-        camRot = this.#options.rotateCam ? this.ship.rot : 0;
+        // const pos = entity.position; // entity.position.sub(this.ship.position);
+        camRot = this.#options.rotateCam ? this.ship.orientation : 0;
         // const camRot = this.#options.rotateCam ? 0 : 0;
         // const minDist = 4 * 8;
         //const minDist = 4 * 8 + 8;
@@ -1656,14 +1615,14 @@ class UI extends HTMLElement {
         //const maxDist = (UI.TARGET_VELOCITY * UI.TARGET_VELOCITY) / (2 * UI.ENGINE) + 3 * 8; // 1.5 ship length
         // console.log("viewbox", maxDist);
         //const s = 1 / maxDist; // length of ship
-        // const dir = new DOMPoint(-Math.sin(this.ship.rot), Math.cos(this.ship.rot));
-        // const camPos = Vector.add(this.ship.pos, Vector.mul(dir, Math.max(view - minDist, 0)));
-        // const camPos = Vector.add(this.ship.pos, Vector.mul(dir, view / 2));
+        // const dir = new DOMPoint(-Math.sin(this.ship.orientation), Math.cos(this.ship.orientation));
+        // const camPos = Vector.add(this.ship.position, Vector.mul(dir, Math.max(view - minDist, 0)));
+        // const camPos = Vector.add(this.ship.position, Vector.mul(dir, view / 2));
 
         const v = Vector.abs(this.ship.velocity);
         const view = v * v / (2 * UI.ENGINE);
-        camPos = Vector.add(this.ship.pos, v === 0 ? new DOMPoint() : Vector.mul(this.ship.velocity, view / 2 / v));
-        // const camPos = this.ship.pos;
+        camPos = Vector.add(this.ship.position, v === 0 ? new DOMPoint() : Vector.mul(this.ship.velocity, view / 2 / v));
+        // const camPos = this.ship.position;
         camScale = 1;
         }
 
@@ -1685,14 +1644,16 @@ class UI extends HTMLElement {
         this.querySelector(".starsopt").style.transform = `translate(-50%, -50%) rotate(${camRot}rad)`;
         // this.querySelector("canvas").style.transform = `translate(-50%, -50%) rotate(${camRot}rad)`;
 
+        // XXX COPIED
         for (let entity of this.#entities) {
-            // const pos = entity.pos.sub(this.ship.pos);
+            // const pos = entity.position.sub(this.ship.position);
             entity.node.style.transform =
                 // global cam
-                `translate(${entity.pos.x}px, ${entity.pos.y}px) rotate(${entity.rot}rad)`;
+                `translate(${entity.position.x}px, ${entity.position.y}px) rotate(${entity.orientation}rad)`;
                 // individual cam
-                // `rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px) translate(${entity.pos.x}px, ${entity.pos.y}px) rotate(${entity.rot}rad)`;
+                // `rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px) translate(${entity.position.x}px, ${entity.position.y}px) rotate(${entity.orientation}rad)`;
         }
+
         for (let joint of this.#joints) {
             joint.node.style.transform = `translate(${joint.position.x}px, ${joint.position.y}px)`;
         }
@@ -1706,11 +1667,10 @@ class UI extends HTMLElement {
 
             for (let entity of this.#entities) {
                 if (!entity.annotation) {
-                    entity.annotation = document.createElementNS(SVG_NS, "g");
-                    entity.annotation.classList.add("annotation");
-                    const v = document.createElementNS(SVG_NS, "line");
-                    const omega = document.createElementNS(SVG_NS, "line");
-                    const hitboxPath = document.createElementNS(SVG_NS, "path");
+                    entity.annotation = createSVGElement("g", {class: "annotation"});
+                    const v = createSVGElement("line");
+                    const omega = createSVGElement("line");
+                    const hitboxPath = createSVGElement("path");
                     hitboxPath.classList.add("hitbox");
                     entity.annotation.append(v, omega, hitboxPath);
                     //this.canvas.append(entity.annotation);
@@ -1718,24 +1678,24 @@ class UI extends HTMLElement {
                 }
 
                 const v = entity.annotation.children[0];
-                const dir = new DOMPoint(-Math.sin(entity.rot), Math.cos(entity.rot));
-                v.setAttribute("x1", entity.pos.x);
-                v.setAttribute("y1", entity.pos.y);
-                v.setAttribute("x2", entity.pos.x + entity.velocity.x);
-                v.setAttribute("y2", entity.pos.y + entity.velocity.y);
+                const dir = new DOMPoint(-Math.sin(entity.orientation), Math.cos(entity.orientation));
+                v.setAttribute("x1", entity.position.x);
+                v.setAttribute("y1", entity.position.y);
+                v.setAttribute("x2", entity.position.x + entity.velocity.x);
+                v.setAttribute("y2", entity.position.y + entity.velocity.y);
                 const omega = entity.annotation.children[1];
                 // const dir = entity.v.x || entity.v.y ? Vec.norm(entity.v) : new DOMPoint(0, 1);
                 const vRot = Vec.mul(Vec.getNormal(dir), 8 * entity.spin); // tangential speed in 8m radius
                 //const vRot = entity.v.x || entity.v.y ? Vec.mul(Vec.getNormal(entity.v), entity.vRot) : new DOMPoint();
-                omega.setAttribute("x1", entity.pos.x);
-                omega.setAttribute("y1", entity.pos.y);
-                omega.setAttribute("x2", entity.pos.x + vRot.x);
-                omega.setAttribute("y2", entity.pos.y + vRot.y);
-                /*omega.setAttribute("cx", entity.pos.x);
-                omega.setAttribute("cy", entity.pos.y);
+                omega.setAttribute("x1", entity.position.x);
+                omega.setAttribute("y1", entity.position.y);
+                omega.setAttribute("x2", entity.position.x + vRot.x);
+                omega.setAttribute("y2", entity.position.y + vRot.y);
+                /*omega.setAttribute("cx", entity.position.x);
+                omega.setAttribute("cy", entity.position.y);
                 omega.setAttribute(
                     "d",
-                    `M ${entity.pos.x + 10} ${entity.pos.y} A 10 10 0 ${Math.abs(entity.vRot) > Math.PI ? 1 : 0} 0 ${entity.pos.x + 10 * Math.cos(entity.vRot)} ${entity.pos.y + 10 * Math.sin(entity.vRot)}`
+                    `M ${entity.position.x + 10} ${entity.position.y} A 10 10 0 ${Math.abs(entity.vRot) > Math.PI ? 1 : 0} 0 ${entity.position.x + 10 * Math.cos(entity.vRot)} ${entity.position.y + 10 * Math.sin(entity.vRot)}`
                 );*/
                 entity.annotation.children[2].setAttribute("d", [
                     `M ${entity.hitbox.vertices[0].x}, ${entity.hitbox.vertices[0].y}`,
@@ -1754,8 +1714,8 @@ class UI extends HTMLElement {
             this.#annotationLayer.textContent = "";
         }
 
-        /*this.ship.pos = [this.ship.pos[0] + this.ship.v[0] * t,
-                         this.ship.pos[1] + this.ship.v[1] * t];*/
+        /*this.ship.position = [this.ship.position[0] + this.ship.v[0] * t,
+                         this.ship.position[1] + this.ship.v[1] * t];*/
 
         if (!this.paused) {
             for (let ship of this.fleet) {
@@ -1767,7 +1727,7 @@ class UI extends HTMLElement {
             this.shuttle.tick(t);
         }
 
-        requestAnimationFrame(() => this.step());
+        //requestAnimationFrame(() => this.step());
     }
 
     #simulateEngines(t) {
@@ -1803,7 +1763,7 @@ class UI extends HTMLElement {
         //const TARGET_SPIN = Math.PI; // rad / s
         // console.log(ENGINE_ROT, UI.ENGINE, ENGINE_ROT < UI.ENGINE, ENGINE_ROT / this.ship.r / Math.PI, "PI");
 
-        const dir = new DOMPoint(-Math.sin(this.ship.rot), Math.cos(this.ship.rot));
+        const dir = new DOMPoint(-Math.sin(this.ship.orientation), Math.cos(this.ship.orientation));
         const ndir = Vector.getNormal(dir);
 
         let thrustY = this.#control.y;
@@ -1958,8 +1918,8 @@ class UI extends HTMLElement {
             const respondToCollision = (a, b, pa, pb, normal, velocity) => {
                 // const v = Vector.abs(velocity);
                 const v = Vector.dot(velocity, normal);
-                const ra = Vector.getNormal(Vector.sub(pa, a.pos));
-                const rb = Vector.getNormal(Vector.sub(pb, b.pos));
+                const ra = Vector.getNormal(Vector.sub(pa, a.position));
+                const rb = Vector.getNormal(Vector.sub(pb, b.position));
                 const tc = Vector.dot(Vector.mul(ra, Vector.dot(ra, normal) / a.inertia), normal);
                 const td = Vector.dot(Vector.mul(rb, Vector.dot(rb, normal) / b.inertia), normal);
                 const e = 0;
@@ -1978,14 +1938,14 @@ class UI extends HTMLElement {
                 // j = Vector.mul(normal, j);
                 //const dva = joint.entityA.applyImpulse(j);
                 //const dvb = joint.entityB.applyImpulse(Vector.mul(j, -1));
-                if (this.#frames === 0) {
+                //if (this.#frames === 0) {
                 //console.log(a.spin, dsa);
                 //console.log(
                 //    "VREL PRE AFT", v, Vector.dot(
                 //        Vector.sub(b.getVelocityAt(pb), a.getVelocityAt(pa)),
                 //    normal), Vector.dot(vd, normal)
                 //);
-                }
+                //}
                 return [dva, dvb];
             }
 
@@ -2006,15 +1966,15 @@ class UI extends HTMLElement {
             // console.log("JOINT", j * t);
 
             if (this.#options.debug) {
-                const annotation = SVG.make("g", {class: "joint"}); // {class: `joint ${drifting ? "drifting" : ""}`});
+                const annotation = createSVGElement("g", {class: "joint"}); // {class: `joint ${drifting ? "drifting" : ""}`});
                 const dvaStop = Vector.add(anchorA, dva);
                 const dvbStop = Vector.add(anchorB, dvb);
                 // console.log(anchorA, dva, dvaStop);
                 annotation.append(
-                    SVG.make("circle", {cx: anchorA.x, cy: anchorA.y, r: 0.5}),
-                    SVG.make("line", {x1: anchorA.x, y1: anchorA.y, x2: dvaStop.x, y2: dvaStop.y}),
-                    SVG.make("circle", {cx: anchorB.x, cy: anchorB.y, r: 0.5}),
-                    SVG.make("line", {x1: anchorB.x, y1: anchorB.y, x2: dvbStop.x, y2: dvbStop.y})
+                    createSVGElement("circle", {cx: anchorA.x, cy: anchorA.y, r: 0.5}),
+                    createSVGElement("line", {x1: anchorA.x, y1: anchorA.y, x2: dvaStop.x, y2: dvaStop.y}),
+                    createSVGElement("circle", {cx: anchorB.x, cy: anchorB.y, r: 0.5}),
+                    createSVGElement("line", {x1: anchorB.x, y1: anchorB.y, x2: dvbStop.x, y2: dvbStop.y})
                 );
                 this.annotate(joint, annotation);
             }
@@ -2053,10 +2013,10 @@ class UI extends HTMLElement {
                 // XXX should happen only once and only for entity with lower mass
                 // XXX should we rather do this via collision distance?
                 // undo movement / rotation
-                // a.update(Vec.sub(a.pos, Vec.mul(a.velocity, t)), a.rot - a.spin * t);
+                // a.update(Vec.sub(a.position, Vec.mul(a.velocity, t)), a.orientation - a.spin * t);
                 // console.log("STILL Collides", a.collides(b));
                 // const entity = a.mass < b.mass ? a : b;
-                // entity.pos = Vec.add(entity.pos, Vec.mul(collision.normal, -collision.distance));
+                // entity.position = Vec.add(entity.position, Vec.mul(collision.normal, -collision.distance));
 
                 // https://en.wikipedia.org/wiki/Collision_response
                 const normal = a === collision.b ? Vec.mul(collision.normal, -1) : collision.normal;
@@ -2064,8 +2024,8 @@ class UI extends HTMLElement {
                 // linear only
                 // const v = Vec.dot(Vec.sub(b.velocity, a.velocity), normal);
 
-                const ra = Vector.getNormal(Vector.sub(collision.vertex, a.pos));
-                const rb = Vector.getNormal(Vector.sub(collision.vertex, b.pos));
+                const ra = Vector.getNormal(Vector.sub(collision.vertex, a.position));
+                const rb = Vector.getNormal(Vector.sub(collision.vertex, b.position));
 
                 function getRelV(a, b, ra, rb) {
                     // console.log(a.velocity, Vector.mul(ra, a.spin), b.velocity, Vector.mul(rb, b.spin));
@@ -2097,10 +2057,10 @@ class UI extends HTMLElement {
                         // console.log("SKIP", this.#frames);
                         // XXX
                         // XXX
-                        // const rot = this.ship.rot - this.ship.spin * t;
-                        // const pos = Vector.sub(this.ship.pos, Vector.mul(this.ship.velocity, t));
+                        // const rot = this.ship.orientation - this.ship.spin * t;
+                        // const pos = Vector.sub(this.ship.position, Vector.mul(this.ship.velocity, t));
                         // this.ship.update(pos, rot);
-                        // this.ship.update(this.ship.pos, rot);
+                        // this.ship.update(this.ship.position, rot);
                         // this.ship.spin = 0;
 
                         // KLEB
@@ -2129,11 +2089,11 @@ class UI extends HTMLElement {
                 let p = collision.vertex;
                 const DELTA = 0.1;
                 if (a.mass <= b.mass) {
-                    // a.update(Vec.add(a.pos, Vector.mul(normal, collision.distance)), a.rot);
-                    a.update(Vec.add(a.pos, Vector.mul(normal, collision.distance - DELTA)), a.rot);
+                    // a.update(Vec.add(a.position, Vector.mul(normal, collision.distance)), a.orientation);
+                    a.update(Vec.add(a.position, Vector.mul(normal, collision.distance - DELTA)), a.orientation);
                     p = Vec.add(p, Vector.mul(normal, collision.distance - DELTA / 2));
                 } else {
-                    b.update(Vec.sub(b.pos, Vector.mul(normal, collision.distance - DELTA)), b.rot);
+                    b.update(Vec.sub(b.position, Vector.mul(normal, collision.distance - DELTA)), b.orientation);
                     p = Vec.sub(p, Vector.mul(normal, collision.distance - DELTA / 2));
                 }
 
@@ -2158,7 +2118,7 @@ class UI extends HTMLElement {
                         //collision.b, collision.b.matrix.inverse().transformPoint(collision.vertex)
                         a, a.matrix.inverse().transformPoint(p),
                         b, b.matrix.inverse().transformPoint(p),
-                        SVG.make("circle", {r: 0.5, fill: "url(#spark-gradient)"})
+                        createSVGElement("circle", {r: 0.5, fill: "url(#spark-gradient)"})
                     );
                     this.shuttle.links.add(joint);
                     this.#joints.add(joint);
@@ -2203,7 +2163,7 @@ class UI extends HTMLElement {
                 // console.log("COLLISION", Vec.abs(dva), Vec.abs(dvb), Math.max(Vec.abs(dva), Vec.abs(dvb)) > 17 ? "DEAD" : "OK");
                 /*if (a === this.ship) {
                     // a.spin = -a.spin; // HACK
-                    // a.rot -= a.spin * t;
+                    // a.orientation -= a.spin * t;
                 }*/
 
                 if (this.#options.debug) {
@@ -2212,24 +2172,28 @@ class UI extends HTMLElement {
                     if (g) {
                         g.remove();
                     }
-                    g = document.createElementNS(SVG_NS, "g");
-                    g.classList.add("collision");
-                    const line = document.createElementNS(SVG_NS, "line");
-                    line.setAttribute("x1", collision.edge[0].x);
-                    line.setAttribute("y1", collision.edge[0].y);
-                    line.setAttribute("x2", collision.edge[1].x);
-                    line.setAttribute("y2", collision.edge[1].y);
-                    g.append(line);
-                    const circle = document.createElementNS(SVG_NS, "circle");
-                    circle.setAttribute("cx", collision.vertex.x);
-                    circle.setAttribute("cy", collision.vertex.y);
-                    circle.setAttribute("r", 0.5);
-                    g.append(circle);
+                    g = createSVGElement("g", {class: "collision"});
+                    const line = createSVGElement("line", {
+                        x1: collision.edge[0].x,
+                        y1: collision.edge[0].y,
+                        x2: collision.edge[1].x,
+                        y2: collision.edge[1].y
+                    });
+                    const circle = createSVGElement(
+                        "circle", {cx: collision.vertex.x, cy: collision.vertex.y, r: 0.5}
+                    );
+                    const [toDVA, toDVB, toDVSA, toDVSB] =
+                        [dva, dvb, dvsa, dvsb].map(p => Vec.add(collision.vertex, p));
                     g.append(
-                        SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dva)),
+                        line, circle,
+                        createSVGElement("line", {x1: collision.vertex.x, y1: collision.vertex.y, x2: toDVA.x, y2: toDVA.y}),
+                        createSVGElement("line", {x1: collision.vertex.x, y1: collision.vertex.y, x2: toDVB.x, y2: toDVB.y}),
+                        createSVGElement("line", {x1: collision.vertex.x, y1: collision.vertex.y, x2: toDVSA.x, y2: toDVSA.y}),
+                        createSVGElement("line", {x1: collision.vertex.x, y1: collision.vertex.y, x2: toDVSB.x, y2: toDVSB.y})
+                        /*SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dva)),
                         SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dvb)),
                         SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dvsa)),
-                        SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dvsb)),
+                        SVG.makeLine(collision.vertex, Vec.add(collision.vertex, dvsb)),*/
                     );
                     this.#annotationLayer.append(g);
                 }
@@ -2255,26 +2219,26 @@ class UI extends HTMLElement {
         //    this.querySelectorAll(".object"),
         //    path => {
         //        // const bbox = path.getBBox();
-        //        return new Entity(
+        //        return new Body(
         //            // path, Polygon.fromRect(bbox.x, bbox.y, bbox.width, bbox.height), 10000
-        //            path,
         //            new Polygon(
         //                // TODO fix hexagon better
         //                [new DOMPoint(-2, -4), new DOMPoint(-2, 0), new DOMPoint(-1, 4),
         //                 new DOMPoint(1, 4),
         //                 new DOMPoint(2, 0), new DOMPoint(2, -4)]),
-        //            10000
+        //            10000,
+        //            path
         //        );
         //    }
         //);
-        this.ship = new Entity(
-            this.#shuttleNode,
+        this.ship = new Body(
             new Polygon(
                 // TODO fix hexagon better
                 [new DOMPoint(-2, -4), new DOMPoint(-2, 0), new DOMPoint(-1, 4),
                  new DOMPoint(1, 4),
                  new DOMPoint(2, 0), new DOMPoint(2, -4)]),
-            10000
+            10000,
+            this.#shuttleNode
         );
         this.shuttle = new Shuttle(this.ship, this);
         this.shuttle.updateTarget();
@@ -2316,7 +2280,7 @@ class UI extends HTMLElement {
         //}
 
         // const ship = this.fleet[0];
-        // this.ship.update(Vector.add(ship.parts[ship.parts.length - 1].pos, new DOMPoint(30, 0)), 0);
+        // this.ship.update(Vector.add(ship.parts[ship.parts.length - 1].position, new DOMPoint(30, 0)), 0);
 
         //this.#createContainer(new DOMPoint(0, 50 + 8 + 2.5 / 2));
         //this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
@@ -2338,7 +2302,7 @@ class UI extends HTMLElement {
             new DOMPoint(-width / 2, -height / 2), width, height, {fill: "silver"}
         );
         const shape = Polygon.fromRect(-width / 2, -height / 2, width, height);
-        const container = new Entity(rect, shape, 1000); // 2.5 * 1000); // 1);
+        const container = new Body(shape, 1000, rect); // 2.5 * 1000); // 1);
         container.update(position, 0);
         this.#entityLayer.append(rect);
         this.#entities.push(container);
@@ -2351,7 +2315,7 @@ class UI extends HTMLElement {
         // const g = this.#stars.firstElementChild;
         // this.#stars.style.background = "black";
         this.#stars = document.createElement("svg");
-        const g = SVG.make("g");
+        const g = createSVGElement("g");
         this.#stars.append(g);
         // const bounds = this.#stars.getBoundingClientRect(); // stars.getBBox();
         const bounds = document.documentElement.getBoundingClientRect(); // stars.getBBox();
@@ -2374,13 +2338,13 @@ class UI extends HTMLElement {
         //const y = bounds.height / 2;
         const x = size / 2;
         const y = size / 2;
-        // g.append(SVG.make("rect", {x: x - size / 2, y: y - size / 2, width: size, height: size, stroke: "red"}));
+        // g.append(createSVGElement("rect", {x: x - size / 2, y: y - size / 2, width: size, height: size, stroke: "red"}));
         for (let i = 0; i < count; i++) {
             const s = Math.random();
             const r = Math.sqrt(Math.random()) * size / 2;
             const phi = Math.random() * 2 * Math.PI;
             g.append(
-                SVG.make(
+                createSVGElement(
                     "circle",
                     {
                         //cx: Math.random() * bounds.width,
