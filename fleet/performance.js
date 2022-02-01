@@ -267,7 +267,7 @@ addEventListener("DOMContentLoaded", () => {
             div.style.width = `${document.documentElement.clientWidth}px`;
             div.style.height = `${document.documentElement.clientHeight}px`;
             console.log("X", document.documentElement.clientWidth);
-            div.style.background = "linear-gradient(black, purple)";
+            div.style.background = "radial-gradient(closest-side, purple, black)";
             const body = new Body(null, 0, div);
             if (moveInput.checked) {
                 body.spin = -Math.PI / 16;
@@ -275,11 +275,6 @@ addEventListener("DOMContentLoaded", () => {
             world.add(body);
         }
     }
-
-    // TODO CONTINUE: move to engine
-    // TODO prepare streaming stuff
-    // TODO prepare drones draft
-    // (opt pre stream: lights / nav UI / struts)
 
     const form = document.querySelector("#info form");
     form.addEventListener("change", reset);

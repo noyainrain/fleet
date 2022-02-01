@@ -2,4 +2,4 @@ NPM=npm
 
 .PHONY: deps
 deps:
-	$(NPM) install
+	$(NPM) install --no-save

@@ -5,43 +5,17 @@ addEventListener("error", event => {
 });
 
 import "./fleet/simulation.js";
-import {Box, Vector, animate, animate2, createSVGElement, transition} from "./fleet/util.js?fh";
-import {Polygon} from "./fleet/core.js?lxol";
+import {POI} from "./fleet/core.js";
+import {Mission} from "./fleet/missions.js";
+import {Cargo, Character, Dock, DockingEvent, FleetGenerator, Ship} from "./fleet/game.js";
+import {Box, Polygon, Vector, animate, animate2, createSVGElement, transition} from "./fleet/util.js?fh";
 import {SHIP_NAMES, SURNAMES} from "./fleet/names.js?barx";
-import {Body} from "./fleet/simulation.js";
+import {Body, CollisionEvent, Joint} from "./fleet/simulation.js";
 
-const ROLES = {
-    Captain: "An emergency meeting has been called at {loc}.",
-    Navigator: "There is an urgent meeting at {loc}.",
-    Engineer: "We have a technical problem at {loc}.",
-    Doctor: "We have a medical emergency at {loc}.",
-    Guard: "An offense has been reported at {loc}.",
-    Logistician: "We have some problematic cargo at {loc}.",
-    Scientist: "Something went wrong with the experiment running at {loc}."
-};
+const ROLES = ["captain", "navigator", "engineer", "doctor", "guard", "logistician", "scientist"];
 //Communicator
 //Cook
 //Crewmember -- support for the last mission
-
-const CONCLUSIONS = {
-    Captain: "Then there was a mutiny.",
-    Navigator: "Then there was a navigation mishap.",
-    Engineer: "Then the computers crashed.",
-    Doctor: "Then there was a tragic accident.",
-    Guard: "Then a traitor took control.",
-    Logistician: "Then there was some toxic cargo.",
-    Scientist: "Then there was an outbreak."
-};
-
-const POIS = {
-    Captain: "Emergency meeting",
-    Navigator: "Urgent meeting",
-    Engineer: "Technical problem",
-    Doctor: "Medical emergency",
-    Guard: "Offense",
-    Logistician: "Problematic cargo",
-    Scientist: "Bad experiment"
-}
 
 /*class Vector {
     x;
@@ -75,255 +49,134 @@ const POIS = {
 
 const Vec = Vector;
 
-class Ship {
-    static MODULE_WIDTH = 40;
-    static MODULE_HEIGHT = 20;
-    static BLEED = 0.1;
-    static UNIT = 4;
-
-    name;
-    color;
-    modules = [];
-    // parts;
-    // docks;
-
-    constructor(name, color) {
-        this.name = name;
-        this.color = color;
-        // XXX
-        // this.parts = this.modules.flat(2);
-    }
-
-    get parts() {
-        return this.modules.map(row => row.map(module => module.parts)).flat(2);
-    }
-
-    get bounds() {
-        const vertices = this.parts.map(part => part.hitbox.vertices).flat();
-        const xs = vertices.map(p => p.x);
-        const ys = vertices.map(p => p.y);
-        const minX = Math.min(...xs);
-        const minY = Math.min(...ys);
-        return new DOMRect(minX, minY, Math.max(...xs) - minX, Math.max(...ys) - minY);
-    }
-
-    tick(game) {
-        for (let row of this.modules) {
-            for (let module of row) {
-                if (module instanceof Dock) {
-                    module.tick(game);
-                }
-            }
-        }
-
-    }
-}
-
-class Module {
-    type;
-    parts;
-    ship;
-
-    constructor(type, parts, ship) {
-        this.type = type;
-        this.parts = parts;
-        this.ship = ship;
-    }
-
-    get name() {
-        return `the ${this.type} on the ${this.ship.name}`;
-    }
-
-    findNearestDock() {
-        function getModuleCoords(module) {
-            const ship = module.ship;
-            for (let y = 0; y < ship.modules.length; y++) {
-                for (let x = 0; x < ship.modules[y].length; x++) {
-                    if (module === ship.modules[y][x]) {
-                        return [x, y];
-                    }
-                }
-            }
-            return undefined;
-        }
-
-        const module = this;
-        const ship = this.ship;
-        const coords = getModuleCoords(module);
-        const queue = [coords];
-        const visited = new Set();
-        while (queue.length) {
-            const [x, y] = queue.shift();
-            if (
-                !(x >= 0 && x < ship.modules[0].length && y >= 0 && y < ship.modules.length) ||
-                visited.has([x, y].toString())
-            ) {
-                continue;
-            }
-            visited.add([x, y].toString());
-            const module = ship.modules[y][x];
-            if (module.type === "dock") {
-                return module;
-            }
-            queue.push(
-                [x - 1, y - 1], [x, y - 1], [x + 1, y - 1], [x - 1, y], [x + 1, y],
-                [x - 1, y + 1], [x, y + 1], [x + 1, y + 1]
-            );
-        }
-        throw new Error();
-    }
-}
-
-class Dock extends Module {
-    id;
-    state;
-    #hot;
-
-    constructor(parts, ship, id, hot) {
-        super("dock", parts, ship);
-        this.id = id;
-        this.state = "arrival";
-        this.#hot = hot;
-    }
-
-    get name() {
-        return `dock ${this.id} on the ${this.ship.name}`;
-    }
-
-    tick(game) {
-        switch (this.state) {
-        case "arrival":
-            // TODO not every frame
-            const hot = this.#hot.transform(this.parts[0].matrix);
-            if (
-                // (!game.shuttle.cargo || game.shuttle.cargo.dock === this) &&
-                (!game.shuttle.mission || game.shuttle.mission.target.dock === this) &&
-                game.shuttle.links.size >= 2 &&
-                [...game.shuttle.links].every(
-                    link => hot.contains(link.entityA.matrix.transformPoint(link.anchorA))
-                )
-            ) {
-                let mission;
-                // if (game.shuttle.cargo?.dock === this) {
-                //if (game.shuttle.mission.target.dock === this) {
-
-                let cargo;
-                if (game.shuttle.mission) {
-                    cargo = game.shuttle.mission.target.id === "pickup" ?
-                        game.shuttle.mission.character : null;
-                } else {
-                    cargo = new Character(
-                        "Crewmember", SURNAMES[Math.trunc(Math.random() * SURNAMES.length)]
-                    );
-                }
-
-                //game.querySelector(".cargo").textContent =
-                //    cargo.destination.type === "dock" ?
-                //    `Passenger to ${cargo.ship.name}, dock ${cargo.dock.id}` :
-                //    `Passenger to ${cargo.destination.type} on ${cargo.ship.name}, dock ${cargo.dock.id}`;
-
-                this.state = "docking";
-                (async () => {
-                    await game.shuttle.dock(cargo);
-
-                    if (!game.shuttle.mission) {
-                        // const ship = game.fleet[Math.trunc(Math.random() * game.fleet.length)];
-                        //const x = Math.trunc(Math.random() * ship.modules[0].length);
-                        //const y = Math.trunc(Math.random() * ship.modules.length);
-                        // const modules = ship.modules.flat();
-                        // const modules = game.fleet.map(ship => ship.modules).flat(2);
-                        let module = null;
-                        let dock = this;
-                        while (dock === this) {
-                            console.log("FIND DOCK");
-                            // module = modules[Math.trunc(Math.random() * modules.length)];
-                            module = game.getRandomLocation();
-                            dock = module.findNearestDock();
-                        }
-
-                        await game.shuttle.message(
-                            cargo.name,
-                             // `Hi! To the ${cargo.destination.type} on the ${cargo.destination.ship.name}, please!`
-                             `Hi! To ${module.name}, please!`
-                        );
-
-                        //const name = SURNAMES[Math.trunc(Math.random() * SURNAMES.length)];
-                        //cargo = new Cargo(name, module, dock);
-                        mission = new Mission(cargo, null, null, module, dock);
-                        game.shuttle.assignMission(mission);
-                    }
-
-                    this.state = "departure";
-                })();
-            }
-            break;
-
-        case "docking":
-            break;
-
-        case "departure":
-            if (game.shuttle.links.size === 0) {
-                this.state = "arrival";
-            }
-            break;
-
-        default:
-            throw new Error();
-        }
-    }
-}
-
-class Shuttle {
+/** Player-Controlled space shuttle. */
+class Shuttle extends EventTarget {
     body;
-    game;
-    links = new Set();
-    cargo = null;
     #message = null;
+    /** @type {SVGSVGElement} */
     #navigation;
-    pois = new Map();
     #missionPOI = null;
     #fleetPOI = null;
+    /** @type {?POI} */
+    #cargoPOI = null;
+    /** @type {Map<POI, Element>} */
+    #pois = new Map();
+    /** @type {?number} */
+    #alarm = null;
 
+    /**
+     * @param {Body} body
+     * @param {UI} game
+     */
     constructor(body, game) {
+        super();
         this.body = body;
         this.game = game;
-        this.#navigation = this.game.querySelector(".navigation");
+        /** @type {Set<Joint>} */
+        this.joints = new Set();
+        /** @type {?Cargo} */
+        this.cargo = null;
+
+        const svg = this.game.querySelector(".navigation");
+        if (!(svg instanceof SVGSVGElement)) {
+            throw new Error();
+        }
+        this.#navigation = svg;
+
+        this.body.addEventListener(
+            "collide",
+            event => {
+                if (
+                    this.body === event.bodyA && event.edge[0] === this.body.shape.vertices[5] ||
+                    this.body === event.bodyB && (
+                        event.vertex === this.body.shape.vertices[5] ||
+                        event.vertex === this.body.shape.vertices[0]
+                    ) && this.joints.size < 2
+                ) {
+                    this.#attach(
+                        this.body === event.bodyA ? event.bodyB : event.bodyA, event.point
+                    );
+                }
+            }
+        );
     }
 
-    async dock(cargo = null) {
-        const bar = this.game.querySelector(".docking rect");
-        this.game.classList.add("shuttle-docking");
-        await new Promise(resolve => setTimeout(resolve, 0));
-        bar.style.width = "100%";
-        await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
-        bar.style.width = "0%";
-        this.game.classList.remove("shuttle-docking");
-
-        this.cargo = cargo;
-        this.game.querySelector(".shuttle-cargo").textContent = cargo ? cargo.name : "No cargo";
-        //const p = this.game.querySelector(".cargo");
-        //if (cargo) {
-        //    //const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
-        //    //p.textContent =
-        //    //    cargo.destination.type === "dock" ?
-        //    //    //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
-        //    //    //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
-        //    //    `Crewmember ${cargo.name}\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
-        //    //    `Crewmember ${cargo.name}\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
-        //} else {
-        //    //p.textContent = "";
-        //    //this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
-        //}
-        //this.updateTarget();
-
-        /*await new Promise(resolve => setTimeout(resolve, 0));
-        this.game.classList.add("shuttle-undocking");
-        bar.style.width = "100%";
-        await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
-        this.game.releaseShuttleLink();
-        bar.style.width = "0%";
-        this.game.classList.remove("shuttle-undocking");*/
+    /** Alarm time in s. */
+    get alarm() {
+        return this.#alarm;
     }
+
+    set alarm(value) {
+        this.#alarm = value;
+        this.game.classList.toggle("shuttle-alarm-set", this.#alarm !== null);
+    }
+
+    // DELETE
+    //async dock(cargo = null) {
+    //    if (cargo && this.cargo) {
+    //        throw new Error("full TODO");
+    //    }
+    //    if (!cargo && !this.cargo) {
+    //        throw new Error("empty TODO");
+    //    }
+
+    //    const bar = this.game.querySelector(".docking rect");
+    //    this.game.classList.add("shuttle-docking");
+    //    await new Promise(resolve => setTimeout(resolve, 0));
+    //    bar.style.width = "100%";
+    //    await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
+    //    bar.style.width = "0%";
+    //    this.game.classList.remove("shuttle-docking");
+
+    //    if (cargo) {
+    //        // this.#cargoPOI = new POI(cargo.dock.parts[0], `${cargo.load.name} drop off`);
+    //        this.#cargoPOI = new POI(cargo.dock.parts[0], "Drop off");
+    //        this.addPOI(this.#cargoPOI);
+    //        if (cargo.pickUpMessage) {
+    //            // post - op
+    //            this.message(cargo.pickUpMessage.from, cargo.pickUpMessage.text);
+    //        }
+    //    } else {
+    //        this.removePOI(this.#cargoPOI);
+    //        this.#cargoPOI = null;
+    //        if (this.cargo.dropOffMessage) {
+    //            // post - op
+    //            this.message(this.cargo.dropOffMessage.from, this.cargo.dropOffMessage.text);
+    //        }
+    //    }
+
+    //    this.cargo = cargo;
+    //    this.game.querySelector(".shuttle-cargo").textContent = cargo ? cargo.name : "No cargo";
+
+    //    //if (cargo?.pickUpMessage) {
+    //    //    await this.message(cargo.pickUpMessage.from, cargo.pickUpMessage.text);
+    //    //} else if (this.cargo?.dropOffMessage) {
+    //    //    await this.message(this.cargo.dropOffMessage.from, this.cargo.dropOffMessage.text);
+    //    //}
+
+    //    //const p = this.game.querySelector(".cargo");
+    //    //if (cargo) {
+    //    //    //const type = `${this.cargo.destination.type[0].toUpperCase()}${this.cargo.destination.type.slice(1)}`;
+    //    //    //p.textContent =
+    //    //    //    cargo.destination.type === "dock" ?
+    //    //    //    //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+    //    //    //    //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+    //    //    //    `Crewmember ${cargo.name}\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+    //    //    //    `Crewmember ${cargo.name}\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+    //    //} else {
+    //    //    //p.textContent = "";
+    //    //    //this.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
+    //    //}
+    //    //this.updateTarget();
+
+    //    /*await new Promise(resolve => setTimeout(resolve, 0));
+    //    this.game.classList.add("shuttle-undocking");
+    //    bar.style.width = "100%";
+    //    await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
+    //    this.game.releaseShuttleLink();
+    //    bar.style.width = "0%";
+    //    this.game.classList.remove("shuttle-undocking");*/
+    //}
 
     async message(from, text) {
         const lastThread = this.#message;
@@ -345,7 +198,11 @@ class Shuttle {
 
     async assignMission(mission) {
         this.mission = mission;
-        this.game.classList.toggle("shuttle-assigned", mission)
+        mission.addEventListener("missionend", () => {
+            this.mission = null;
+            this.game.classList.remove("shuttle-assigned");
+        });
+        this.game.classList.toggle("shuttle-assigned", mission);
         this.standingBy = false;
         this.updateTarget();
     }
@@ -364,17 +221,7 @@ class Shuttle {
 
         this.game.level++;
 
-        const pickup = this.game.getRandomLocation();
-        const pickupDock = pickup.findNearestDock();
-        let destination;
-        let destinationDock = pickupDock;
-        while (destinationDock === pickupDock) {
-            destination = this.game.getRandomLocation();
-            destinationDock = destination.findNearestDock();
-        }
-
-        const character = this.game.characters[Math.trunc(Math.random() * (this.game.characters.length - 1))];
-        const event = ROLES[character.role].replace("{loc}", destination.name);
+        this.assignMission(new Mission(this.game.level, this.game));
 
         (async () => {
             const h1 = this.game.querySelector(".mission");
@@ -383,161 +230,6 @@ class Shuttle {
             h1.textContent = "";
         })();
         // h1.style.animationName = "fade";
-
-        await this.message(
-            this.game.characters[this.game.characters.length - 1].name,
-            // `${event} Find ${mission.character.name} at ${mission.pickup.name} and bring them over there ASAP!`
-            `${event} Get ${character.name} over there ASAP!`
-        );
-
-        const bounds = this.game.fleet.map(ship => ship.bounds);
-        const min = Math.min(...bounds.map(bounds => bounds.y));
-        const max = Math.max(...bounds.map(bounds => bounds.y + bounds.height));
-        console.log("MIN", min, "MAX", max);
-
-        const nav = (from, to, color) => {
-            //new DOMPoint(to.x, over),
-            //const points = [
-            //    from,
-            //    new DOMPoint(from.x, over),
-            //    new DOMPoint(to.x, over),
-            //    to
-            //];
-            //const graph = new Map([[points[0], points[1]], [points[1], points[2]], [points[2], points[3]]]);
-
-            const fromAbove = new DOMPoint(from.x, max);
-            const fromBelow = new DOMPoint(from.x, min);
-            const toAbove = new DOMPoint(to.x, max);
-            const toBelow = new DOMPoint(to.x, min);
-            const graph = new Map([
-                [from, [fromAbove, fromBelow]],
-                [fromAbove, [toAbove]],
-                [toAbove, [to]],
-                [fromBelow, [toBelow]],
-                [toBelow, [to]]
-            ]);
-            console.log("GRAPH", graph);
-            //const queue = [[[from], 0]];
-            //while (queue.length) {
-            //    const [path, dist] = queue.shift();
-            //    const p = path[path.length - 1];
-            //    for (let next of graph.get(p)) {
-            //        queue.push(dist + Vector.abs(Vector.sub(next, p)), [...path, next]);
-            //    }
-            //}
-
-            function getShortest(graph, from, to) {
-                console.log("GET SHORT", from, to);
-                if (from === to) {
-                    return [[to], 0];
-                }
-
-                let minPath;
-                let minDist = Infinity;
-                for (let next of graph.get(from)) {
-                    const dist = Vector.abs(Vector.sub(next, from));
-                    let [path, pathDist] = getShortest(graph, next, to);
-                    pathDist += Vector.abs(Vector.sub(next, from));
-                    if (pathDist < minDist) {
-                        minDist = pathDist;
-                        minPath = [from, ...path];
-                    }
-                }
-                return [minPath, minDist];
-            }
-
-            const [path, dist] = getShortest(graph, from, to);
-
-            //let distance = 0;
-            //for (let [p1, p2] of graph.entries()) {
-            //    distance += Vector.abs(Vector.sub(p2, p1));
-            //}
-            //console.log("DISTANCE", distance);
-
-            if (this.game.debug) {
-                let edges = Array.from(graph.entries())
-                    .map(([key, value]) => value.map(p => [key, p])).flat();
-                edges = edges.map(
-                    ([p1, p2]) => createSVGElement("line", {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: color})
-                )
-                console.log("EDGES", edges);
-                const g = createSVGElement("g");
-                g.append(...edges);
-                this.game.annotate("nav-grid" + color, g);
-
-                const d = [
-                    `M ${path[0].x} ${path[0].y}`,
-                    ...path.slice(1).map(p => `L ${p.x} ${p.y}`)
-                ].join(" ");
-                this.game.annotate("nav" + color, createSVGElement("path", {d, stroke: color, "stroke-width": 4}));
-            }
-
-            return dist;
-
-            //if (this.game.debug) {
-            //    const d = [
-            //        `M ${points[0].x} ${points[0].y}`,
-            //        ...points.slice(1).map(p => `L ${p.x} ${p.y}`)
-            //    ].join(" ");
-            //    this.game.annotate("nav" + color, createSVGElement("path", {d, stroke: color, "stroke-width": w}));
-            //}
-        }
-
-        const dist = nav(this.body.position, pickupDock.parts[0].position, "rgba(255, 0, 0, 0.5)") +
-            nav(pickupDock.parts[0].position, destinationDock.parts[0].position, "rgba(0, 255, 0, 0.5)");
-        console.log("DIST", dist);
-
-        let time = null;
-        if (this.game.level >= 2) {
-            // 3 turns = 4 accel/deaccel a 2s
-            const acceltime = 2 * 4 * 2;
-            const acceldist = 2 * 4 * (UI.ENGINE * 2 * 2 / 2);
-            console.log("ACCELDIST", acceldist, acceltime);
-            //                                                                 docking with hin/weg rotation
-            const lower = (dist - acceldist) / UI.TARGET_VELOCITY + acceltime + 2 * (1 + 2 + 1);
-            console.log("LOWER TIME", lower, "s");
-
-            const range = 3 - 1;
-            // alternative: 1.5, 1.33
-            const base = Math.pow((1.5 - 1) / range, 1 / 4);
-            const m = Math.pow(base, this.game.level - 2) * range + 1;
-            time = lower * m;
-        }
-
-        // mission design
-        // three point approach:
-        // upper = easy, should be doable by absolute beginners (level 0)
-        // mid   = hard, should be doable only by experienced players (level 4)
-        // lower = impossible, theoretical limit to approach (level inf)
-        // base ** 4 * (upper - lower) + lower = mid
-        // base ** 4 * (upper - lower) = mid - lower
-        // base = ((mid - lower) / (upper - lower)) ** 1/4
-
-        //const upper = lower * 3;
-        //const mid = lower * 1.5; // alternative: 1.33
-        //const base = Math.pow((mid - lower) / (upper - lower), 1 / 4);
-        //const time = Math.pow(base, this.game.level - 1) * (upper - lower) + lower;
-
-        // e.g. mission times for lower 60 mid 90 upper 120 / 180
-        //>>> ((90 - 60) / (120 - 60)) ** (1/4)
-        //0.8408964152537145
-        //>>> ((90 - 60) / (180 - 60)) ** (1/4)
-        //0.7071067811865476
-        //>>> [0.84 ** i * (120 - 60) + 60 for i in [0, 2, 4, 6, 8]]
-        //[120.0, 102.33599999999998, 89.8722816, 81.07788189696, 74.87255346649498]
-        //>>> [0.71 ** i * (180 - 60) + 60 for i in [0, 2, 4, 6, 8]]
-        //[180.0, 120.49199999999999, 90.4940172, 75.37203407051999, 67.74904237494913]
-
-
-        //nav(this.body.position, pickupDock.parts[0].position, max, "lime", 3);
-        //nav(this.body.position, pickupDock.parts[0].position, min, "green", 3);
-        //nav(pickupDock.parts[0].position, destinationDock.parts[0].position, max, "red");
-        //nav(pickupDock.parts[0].position, destinationDock.parts[0].position, min, "orange");
-
-        const mission = new Mission(
-            character, pickup, pickupDock, destination, destinationDock, time
-        );
-        this.assignMission(mission);
 
         // set mission
 
@@ -549,61 +241,171 @@ class Shuttle {
         // closing message
     }
 
+    /**
+     * Attach ...
+     *
+     * @param {Body} body - ...
+     * @param {DOMPoint} point - ...
+     */
+    #attach(body, point) {
+        const joint = new Joint(
+            this.body, body, this.body.matrix.inverse().transformPoint(point),
+            body.matrix.inverse().transformPoint(point),
+            createSVGElement("circle", {r: 0.5, fill: "url(#spark-gradient)"})
+        );
+        this.game.join(joint);
+        this.joints.add(joint);
+        this.game.classList.add("shuttle-linked");
+
+        const left = this.body.matrix.transformPoint(new DOMPoint(-1.5, -4));
+        const right = this.body.matrix.transformPoint(new DOMPoint(1.5, -4));
+        for (let ship of this.game.fleet) {
+            for (let row of ship.modules) {
+                for (let module of row) {
+                    if (module instanceof Dock) {
+                        // const dock = module;
+                        // TODO adjust zone size
+                        // TODO do not check if cargo here. just call dock.dock() and let it return
+                        // an error if the cargo has the wrong destination. :)
+                        if (
+                            (!this.cargo || this.cargo.dock === module) &&
+                            this.joints.size >= 2 &&
+                            module.zone.contains(left) && module.zone.contains(right)
+                            //[...this.joints].every(
+                            //    joint => dock.zone.contains(
+                            //        joint.bodyA.matrix.transformPoint(joint.anchorA)
+                            //    )
+                            //)
+                        ) {
+                            this.#dock(module);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Detach all objects. */
+    detach() {
+        this.game.disjoin(...this.joints);
+        this.joints.clear();
+        this.game.classList.remove("shuttle-linked");
+    }
+
+    /** @param {Dock} dock */
+    async #dock(dock) {
+        const bar = /** @type {SVGRectElement} */ (this.game.querySelector(".docking rect"));
+        this.game.classList.add("shuttle-docking");
+        await new Promise(resolve => setTimeout(resolve, 0));
+        bar.style.width = "100%";
+        await new Promise(resolve => bar.addEventListener("transitionend", resolve, {once: true}));
+        bar.style.width = "0%";
+        this.game.classList.remove("shuttle-docking");
+
+        if (this.cargo) {
+            this.removePOI(this.#cargoPOI);
+            this.#cargoPOI = null;
+            if (this.cargo.dropOffMessage) {
+                // post - op
+                this.message(this.cargo.dropOffMessage.from, this.cargo.dropOffMessage.text);
+            }
+        }
+        const outgoing = this.cargo;
+        const incoming = dock.dock(outgoing);
+        this.cargo = incoming;
+        if (this.cargo) {
+            // this.#cargoPOI = new POI(cargo.dock.parts[0], `${cargo.load.name} drop off`);
+            this.#cargoPOI = new POI(this.cargo.dock.parts[0], this.cargo.label ?? "Drop off");
+            this.addPOI(this.#cargoPOI);
+            if (this.cargo.pickUpMessage) {
+                // post - op
+                this.message(this.cargo.pickUpMessage.from, this.cargo.pickUpMessage.text);
+            }
+        }
+        const div = /** @type {HTMLDivElement} */ (this.game.querySelector(".shuttle-cargo"));
+        div.textContent = this.cargo ? this.cargo.load.name : "No cargo";
+
+        this.dispatchEvent(new DockingEvent("dock", {dock, incoming, outgoing}));
+    }
+
     updateTarget() {
-        const p = this.game.querySelector(".shuttle-target");
-        let target = "No target\n ";
-        if (this.mission) {
-            target = this.mission.target;
-            const type = `${target.module.type[0].toUpperCase()}${target.module.type.slice(1)}`;
-            target = target.module.type === "dock" ?
-                //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
-                //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
-                `${type} ${target.dock.id} on ${target.module.ship.name}` :
-                `${type} on ${target.module.ship.name}, dock ${target.dock.id}`;
-            //const time = (new Date() - this.mission.t) / 1000;
-            //target += `\n${time.toFixed(1)} s`;
-            const time = (new Date() - this.mission.t) / 1000;
-            target += this.mission.time ? `\n${this.mission.time.toFixed(1)} s` : "\n ";
-        }
-        p.textContent = target;
+        //let target = "No target\n ";
+        //if (this.mission) {
+        //    target = this.mission.target;
+        //    const type = `${target.module.type[0].toUpperCase()}${target.module.type.slice(1)}`;
+        //    target = target.module.type === "dock" ?
+        //        //`Passenger\n${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}` :
+        //        //`Passenger\n${type} on ${this.cargo.destination.ship.name}, dock ${this.cargo.dock.id}`;
+        //        `${type} ${target.dock.id} on ${target.module.ship.name}` :
+        //        `${type} on ${target.module.ship.name}, dock ${target.dock.id}`;
+        //    //const time = (new Date() - this.mission.t) / 1000;
+        //    //target += `\n${time.toFixed(1)} s`;
+        //    const time = (new Date() - this.mission.t) / 1000;
+        //    target += this.mission.time ? `\n${this.mission.time.toFixed(1)} s` : "\n ";
+        //}
+        //p.textContent = target;
 
-        if (this.#missionPOI !== (this.mission?.poi ?? null)) {
-            console.log("MP UPDATE");
-            if (this.#missionPOI) {
-                console.log("REMOVING OLD MP")
-                this.removePOI(this.#missionPOI);
-                this.#missionPOI = null;
-            }
-            if (this.mission) {
-                console.log("ADDING NEW MP");
-                this.#missionPOI = this.mission.poi;
-                this.addPOI(this.#missionPOI);
+        //if (this.#missionPOI !== (this.mission?.poi ?? null)) {
+        //    console.log("MP UPDATE");
+        //    if (this.#missionPOI) {
+        //        console.log("REMOVING OLD MP")
+        //        this.removePOI(this.#missionPOI);
+        //        this.#missionPOI = null;
+        //    }
+        //    if (this.mission) {
+        //        console.log("ADDING NEW MP");
+        //        this.#missionPOI = this.mission.poi;
+        //        this.addPOI(this.#missionPOI);
+        //    }
+        //}
+    }
+
+    /**
+     * Display one or more points of interest.
+     * @param {POI[]} pois - POIs to add.
+     */
+    addPOI(...pois) {
+        for (let poi of pois) {
+            if (!this.#pois.has(poi)) {
+                const node = createSVGElement("g");
+                const text = createSVGElement("text", {y: 32});
+                text.textContent = poi.label;
+                node.append(
+                    createSVGElement("path", {class: "poi", d: "M 0 0 L -8 16 L 8 16 Z"}), text
+                );
+                this.#pois.set(poi, node);
+                this.#navigation.append(node);
             }
         }
     }
 
-    addPOI(poi) {
-        const node = createSVGElement("g");
-        const text = createSVGElement("text", {y: 32});
-        text.textContent = poi.label;
-        node.append(createSVGElement("path", {class: "poi", d: "M 0 0 L -8 16 L 8 16 Z"}), text);
-        this.pois.set(poi, node);
-        this.#navigation.append(node);
-    }
-
-    removePOI(poi) {
-        const node = this.pois.get(poi);
-        node.remove();
-        this.pois.delete(poi);
+    /**
+     * Remove one or more points of interest.
+     * @param {POI[]} pois - POIs to remove.
+     */
+    removePOI(...pois) {
+        for (let poi of pois) {
+            const node = this.#pois.get(poi);
+            if (node) {
+                node.remove();
+                this.#pois.delete(poi);
+            }
+        }
     }
 
     tick(t) {
+        const p = /** @type {HTMLParagraphElement} */ (this.game.querySelector(".hud-alarm p"));
+        if (this.alarm && this.alarm - this.game.world.now <= 0) {
+            this.alarm = null;
+        }
+        p.textContent = this.alarm ? `${(this.alarm - this.game.world.now).toFixed(1)} s` : "-";
+
         const bounds = document.documentElement.getBoundingClientRect()
         const center = new DOMPoint(bounds.width / 2, bounds.height / 2);
         const r = Math.min(bounds.width, bounds.height) / 2 - 2 * 8;
         let smatrix = this.game.canvas.getScreenCTM();
         let matrix = new DOMMatrix([smatrix.a, smatrix.b, smatrix.c, smatrix.d, smatrix.e, smatrix.f]);
-        for (let [poi, node] of this.pois.entries()) {
+        for (let [poi, node] of this.#pois.entries()) {
             // console.log("POI", poi, poi.body, poi.body.position);
             let p = poi.body instanceof DOMPoint ? poi.body : poi.body.position;
             p = matrix.transformPoint(p);
@@ -644,610 +446,8 @@ class Shuttle {
     }
 }*/
 
-class POI {
-    body;
-    label;
-
-    constructor(body, label) {
-        this.body = body;
-        this.label = label;
-    }
-}
-
-class Mission {
-    target;
-    poi;
-
-    constructor(character, pickup, pickupDock, destination, destinationDock, time) {
-        this.character = character;
-        this.pickup = pickup;
-        this.pickupDock = pickupDock;
-        this.destination = destination;
-        this.destinationDock = destinationDock;
-        this.time = time;
-        this.t = new Date();
-        if (pickup) {
-            this.target = new Target("pickup", pickup, pickupDock);
-            this.poi = new POI(pickupDock.parts[0], character.name);
-        } else {
-            this.target = new Target("destination", destination, destinationDock);
-            this.poi = new POI(destinationDock.parts[0], "Target");
-        }
-    }
-
-    tick(t, game) {
-        if (this.time !== null) {
-            this.time -= t;
-            if (this.time <= 0) {
-                // animate(this.game.querySelector(".credits"), "fade-in");
-                (async() => {
-                    const credits = game.querySelector(".credits");
-                    //this.game.classList.add("game-over");
-                    //await new Promise(resolve => credits.addEventListener("transitionend", resolve, {once: true}));
-                    credits.querySelector("span").textContent = game.level === 1 ?
-                        `The fleet operated for 1 mission.`:
-                        `The fleet operated for ${game.level} missions.`;
-                    credits.querySelector("small").textContent = CONCLUSIONS[this.character.role];
-                    game.classList.add("credits-rolling");
-                    animate2(credits, "credits-fade-in");
-                    await animate2(game.querySelector(".credits > div"), "credits-roll");
-                    game.classList.add("game-over");
-                    game.classList.add("opening");
-                    game.classList.remove("credits-rolling");
-                    // await transition(this.game, "game-over");
-                    game.pause();
-                    game.init();
-                })();
-                game.shuttle.assignMission(null);
-            }
-        }
-
-        game.shuttle.updateTarget();
-
-        switch (this.target.id) {
-        case "pickup":
-            if (game.shuttle.cargo) {
-                this.target = new Target("destination", this.destination, this.destination.findNearestDock());
-                this.poi = new POI(this.destinationDock.parts[0], POIS[this.character.role]);
-                game.shuttle.updateTarget();
-                game.shuttle.message(this.character.name, "Good to see you!");
-            }
-            break;
-        case "destination":
-            if (!game.shuttle.cargo) {
-                game.shuttle.assignMission(null);
-                if (this.pickup) {
-                    game.shuttle.message(
-                        game.characters[game.characters.length - 1].name,
-                        `${this.character.name} has arrived. Good job!`
-                    );
-                } else {
-                    game.shuttle.message("Review", `${4 + Math.trunc(Math.random() * 2)} / 5 *`);
-                }
-            }
-            break;
-        default:
-            throw new Error();
-        }
-    }
-}
-
-class Target {
-    id;
-    module;
-    dock;
-
-    constructor(id, module, dock) {
-        this.id = id;
-        this.module = module;
-        this.dock = dock;
-    }
-}
-
-class Character {
-    role;
-    surname;
-
-    constructor(role, surname) {
-        this.role = role;
-        this.surname = surname;
-    }
-
-    get name() {
-        return `${this.role} ${this.surname}`;
-    }
-}
-
-class Roulette {
-    pockets;
-    #total;
-
-    constructor(pockets) {
-        this.pockets = pockets;
-        console.log("POCKETVALS", Array.from(this.pockets.values()));
-        this.#total = sum(Array.from(this.pockets.values()));
-    }
-
-    spin() {
-        const draw = Math.random() * this.#total;
-        //console.log("SPIN", draw, this.#total);
-        let curP = 0;
-        for (let [item, p] of this.pockets.entries()) {
-            curP += p;
-            if (draw < curP) {
-                return item;
-            }
-        }
-    }
-}
-
-function distribute(items, bins, {capacity = Infinity, draw = null} = {}) {
-    if (!draw) {
-        draw = () => Math.trunc(Math.random() * bins.length);
-    }
-    if (capacity * bins.length - sum(bins.map(bin => bin.length)) < items.length) {
-        throw new Error("NOT ENOUGH SPACE");
-    }
-    for (let item of shuffle(items)) {
-        while (true) {
-            const i = draw();
-            if (i < 0 || i >= bins.length) {
-                throw new RangeError("!!!");
-            }
-            // console.log("BIN I", i, bins[i].length);
-            if (bins[i].length >= capacity) {
-                continue;
-            }
-            bins[i].push(item);
-            break;
-        }
-        // let k;
-        // for (k = 0; k < 10; k++) {
-        //if (k === 10) {
-        //    throw new Error("ENDLESS LOOP");
-        //}
-    }
-}
-
-class FleetGenerator {
-    generate() {
-        const decks = 70 + Math.floor(Math.random() * (10 + 1));
-
-        //const tr = new Roulette(new Map([["a", 5], ["b", 2], ["c", 3]]));
-        //const counts = new Map();
-        //for (let i = 0; i < 10000; i++) {
-        //    const item = tr.spin();
-        //    counts.set(item, (counts.get(item) ?? 0) + 1);
-        //}
-        //console.log("ROULETTE AFTER 10k SPINS", counts);
-
-        //const bins = [...new Array(3)].map(() => []);
-        //const roulette = new Roulette(new Map([[0, 6], [1, 3], [2, 1]]));
-        //const items = new Array(10000).fill("test");
-        //distribute(items, bins, {capacity: 5000, draw: () => roulette.spin()});
-        //console.log("DISTRIBUTED", bins[0], bins[1], bins[2]);
-
-        // 2 - 4
-        // 2 * (16 - 4)
-        // min: 4 * (13 + 3) = 52 / 12
-        // max: 4 * (12 + 4) = 48 / 16
-
-        // const CAPACITY = 16 - 4;
-        // const BLOCKS = 2 * CAPACITY;
-        const CAPACITY = 32 - 8; // max capacity of ship (8 blocks local)
-        const BLOCKS = CAPACITY + (8 - 3); // max capacity of small ship (3 blocks local)
-
-        let ships = [... new Array(2)].map(() => []);
-        const indexBySize = new Roulette(
-            new Map(Object.keys(ships).map(i => [parseInt(i), Math.random()]))
-        );
-        const blocks = new Array(BLOCKS).fill("quarters");
-        // distribute(blocks, ships, {capacity: 2 * CAPACITY, draw: () => indexBySize.spin()});
-        distribute(blocks, ships, {capacity: CAPACITY, draw: () => indexBySize.spin()});
-        console.log("DISTRIBUTED", ships[0], ships[1]);
-
-        //let quarters = [...new Array(3)].map(() => Math.random());
-        //const total = sum(quarters);
-        //quarters = quarters.map(share => Math.trunc(share / total * decks));
-        //console.log("Q", quarters);
-        //quarters[0] += decks - sum(quarters);
-        //console.log("Q+R", quarters, decks);
-        //quarters = quarters.map(q => ["quarters", q]);
-        //const blueprint = shuffle(quarters);
-        // return [this.#generateShip(blueprint, new DOMPoint(100, 20))];
-
-        ships = ships.map(ship => this.#generateShip(ship));
-        const span =
-            sum(ships.map(ship => ship.modules[0].length * Ship.MODULE_WIDTH)) +
-            (ships.length - 1) * 2 * Ship.MODULE_WIDTH;
-        let x = -span / 2;
-        for (let ship of ships) {
-            const pos = x + ship.modules[0].length * Ship.MODULE_WIDTH / 2;
-            for (let row of ship.modules) {
-                for (let module of row) {
-                    for (let part of module.parts) {
-                        part.update(Vector.add(part.position, new DOMPoint(pos, 0)), 0);
-                    }
-                }
-            }
-            x += (ship.modules[0].length + 2) * Ship.MODULE_WIDTH;
-        }
-        return ships;
-    }
-
-    #generateShip(blueprint) {
-        // one dock every 8 blocks, last one optional
-        const docks =
-            Math.min(Math.ceil(blueprint.length / 7), 3) +
-            (blueprint.length > 21 ? Math.trunc(Math.random() * 2) : 0);
-        blueprint = [...blueprint, ...new Array(docks).fill("dock")];
-        if (blueprint.length % 2 !== 0) {
-            blueprint.push("quarters");
-        }
-        blueprint = shuffle(blueprint);
-
-        const step = (blueprint.length + 2) > 8 ? 2 : 1;
-        blueprint.unshift(...new Array(step).fill("engineBow"));
-        blueprint.push(... new Array(step).fill("engineStern"));
-
-        console.log("BLUEPRINT", blueprint);
-
-        const generate = {
-            quarters: (...args) => this.#generateShipDecks(...args),
-            engineStern: (...args) => this.#generateEngineStern(...args),
-            engineBow: (...args) => this.#generateEngineBow(...args),
-            dock: (...args) => this.#generateShipDock(...args)
-        };
-
-
-        const color = `hsl(${Math.trunc(Math.random() * 360)}, 50%, 50%)`;
-        // const name = "Camelopardalis";
-        // const name = "Aquarius";
-        const name = SHIP_NAMES[Math.trunc(Math.random() * SHIP_NAMES.length)];
-        const ship = new Ship(name, color);
-
-        // const step = blueprint.length > 16 ? 2 : 1;
-        const width = step * Ship.MODULE_WIDTH;
-        const height = blueprint.length / 2 * Ship.MODULE_HEIGHT;
-        for (let y = 0; y < blueprint.length / step; y++) {
-            const row = [];
-            ship.modules.push(row);
-            for (let x = 0; x < step; x++) {
-                const i = y * step + x;
-                const module = generate[blueprint[i]](x === 0, x === step - 1, ship); // (step === 1 ? Math.trunc(Math.random() * 2) : x);
-                for (let part of module.parts) {
-                    const pos = new DOMPoint(
-                        // x * Ship.MODULE_WIDTH - width / 2, y * Ship.MODULE_HEIGHT - height / 2
-                        x * Ship.MODULE_WIDTH - width / 2 + Ship.MODULE_WIDTH / 2,
-                        height / 2 - y * Ship.MODULE_HEIGHT - Ship.MODULE_HEIGHT / 2
-                    );
-                    part.update(Vector.add(part.position, pos), 0);
-                }
-                row.push(module);
-            }
-        }
-        return ship;
-
-        // {dock: Math.ceil(decks / 40)}
-        //blueprint = [
-        //    ["engineStern", 4], shuffle([...blueprint, ["dock", 4], ["dock", 4]]), ["engineBow", 2]
-        //];
-        // Object.entries(blueprint).map((type, decks) => 
-
-        //const cells = 20 + Math.floor(Math.random() * (10 + 1));
-
-        //const modules = blueprint.map(([type, decks]) => generate[type](cells, decks));
-
-        //const xmodules = [];
-        //xmodules.push(this.#generateShipDecks(cells));
-        //xmodules.push(this.#generateShipDock(cells));
-        //xmodules.push(this.#generateShipDecks(cells));
-        //xmodules.push(this.#generateShipDecks(cells));
-        //xmodules.push(this.#generateShipDecks(cells));
-        //xmodules.push(this.#generateShipDock(cells));
-        //xmodules.push(this.#generateShipDecks(cells));
-        //let y = position.y;
-        //for (let module of xmodules) {
-        //    const height = module.shape.bounds.height;
-        //    module.update(new DOMPoint(position.x, y + module.shape.bounds.height / 2), 0);
-        //    y += height;
-        //}
-        //console.log(xmodules);
-        //return new Ship(xmodules);
-    }
-
-    #generateShipDecks(port, starboard, ship) {
-        const cells = 10;
-        // const decks = 20 + Math.floor(Math.random() * (10 + 1));
-        // const decks = 70 + Math.floor(Math.random() * (10 + 1));
-        // const decks = 4 + Math.floor(Math.random() * (4 + 1));
-        // const decks = 12;
-        const decks = 5;
-
-        // const g = document.createElementNS("http://www.w3.org/2000/svg", "g"); // new SVGRectElement();
-        const g = createSVGElement("g", {class: "ship-quarters"});
-
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // new SVGRectElement();
-        g.append(rect);
-
-        const width = cells * 4; // + 2;
-        const height = decks * 4; // + 2;
-        const left = -width / 2;
-        const bottom = -height / 2;
-        rect.setAttribute("width", width + 0.2);
-        rect.setAttribute("height", height + 0.2);
-        rect.setAttribute("x", left - 0.1);
-        rect.setAttribute("y", bottom - 0.1);
-        /*rect.setAttribute("rx", 1);
-        rect.setAttribute("ry", 1);*/
-        //rect.style.fill = "silver";
-        const skip = Math.floor(Math.random() * cells);
-        g.append(this.#generatePortholes(new DOMPoint(left, bottom), cells, decks, {skip}));
-        /*for (let y = 0; y < decks; y++) {
-            for (let x = 0; x < cells; x++) {
-                if (x === skip) {
-                    continue;
-                }
-                //const w = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                //w.setAttribute("width", 1);
-                //w.setAttribute("height", 2);
-                //w.setAttribute("x", left + 4 * x + 1);
-                //w.setAttribute("y", bottom + 4 * y + 1);
-                // const on = Math.random() <= 2 / 3 ? "ship-window-on" : "";
-                const on = Math.random() <= 0.5 ? "ship-window-on" : "";
-                //g.append(
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1}),
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 0.75, height: 2, x: left + 4 * x + 2.25, y: bottom + 4 * y + 1})
-                //);
-                //g.append(
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5}),
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 4 * x + 2.5, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
-                //);
-                //g.append(
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 2, height: 1, x: left + 4 * x + 1, y: bottom + 4 * y + 1.5, rx: 0.25, ry: 0.25})
-                //);
-                g.append(
-                    createSVGElement("rect", {class: `ship-window ${on}`, width: 2, height: 1.5, x: left + 4 * x + 1, y: bottom + 4 * y + 1, rx: 0.25, ry: 0.25})
-                );
-                //g.append(
-                //    createSVGElement("rect", {class: `ship-window ${on}`, width: 1, height: 2, x: left + 2 * x + 1, y: bottom + 4 * y + 1, rx: 0.5, ry: 0.5})
-                //);
-                //w.setAttribute("width", 2);
-                //w.setAttribute("height", 1);
-                //w.setAttribute("x", left + 4 * x + 1);
-                //w.setAttribute("y", bottom + 4 * y + 1.5);
-                //w.setAttribute("rx", 0.25);
-                //w.setAttribute("ry", 0.25);
-                //w.style.fill = Math.random() <= 2 / 3 ? "yellow" : "#333";
-                //g.append(w);
-            }
-        }*/
-
-        const entity = new Body(Polygon.fromRect(left, bottom, width, height), Infinity, g);
-        //entity.update(new DOMPoint(100, 100), 0);
-        //entity.position = new Vector(-left, 0);
-        // entity.v = new Vector(0, 10);
-        // entity.vRot = Math.PI / 8;
-        return new Module("quarters", [entity], ship);
-    }
-
-    #generateShipDock(port, starboard, ship) {
-        const cells = 10;
-        const width = cells * 4 + 0.2; // + 2;
-        // const height = 2 * 4;
-        const height = Ship.MODULE_HEIGHT + 0.2;
-        const left = -width / 2;
-        const bottom = -height / 2;
-        const g = createSVGElement("g", {class: "ship-dock"});
-        const rect = createSVGElement("rect", {fill: "#ccc", x: -width / 2, y: -height / 2, width, height});
-        let lock;
-        const text = createSVGElement("text", {fill: ship.color});
-        const id = String.fromCharCode(
-            "A".charCodeAt(0) + ship.modules.flat().filter(module => module.type === "dock").length
-        );
-        // const id = ["A", "B", "C", "D"][Math.trunc(Math.random() * 4)];
-        text.textContent = id;
-        let hot;
-        let portholes;
-        if (port) {
-            hot = Polygon.fromRect(left - 1, bottom + 5.5, 1, 5);
-            lock = createSVGElement(
-                "rect",
-                {fill: "url(#lock-gradient-v)", x: left - 1, y: bottom + 5.5, width: 1, height: 5}
-            );
-            text.style.transform = `translate(${left + 1}px, ${bottom + 8}px) rotate(-90deg) scaleY(-1)`;
-            portholes = this.#generatePortholes(new DOMPoint(left + 8, bottom + 4), 2, 2);
-        } else {
-            hot = Polygon.fromRect(left + width, bottom + 5.5, 1, 5);
-            lock = createSVGElement(
-                "rect",
-                {fill: "url(#lock-gradient-v)", x: left + width, y: bottom + 5.5, width: 1, height: 5}
-            );
-            text.style.transform = `translate(${left + width - 1}px, ${bottom + 8}px) rotate(90deg) scaleY(-1)`;
-            portholes = this.#generatePortholes(new DOMPoint(left + width - 16, bottom + 4), 2, 2);
-        }
-        g.append(rect, lock, text, portholes);
-        return new Dock(
-            [new Body(Polygon.fromRect(-width / 2, -height / 2, width, height), Infinity, g)],
-            ship, id, hot
-        );
-    }
-
-    #generateEngineBow(port, starboard, context) {
-        console.log("PORT", port, starboard);
-        const width = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
-        const height = 16 + 2 * Ship.BLEED;
-        const l = -Ship.MODULE_WIDTH / 2 - Ship.BLEED;
-        const b = -Ship.MODULE_HEIGHT / 2 - Ship.BLEED;
-        const leftCorner = port ?
-            `L ${l} ${b + height - 1} A 1 1 0 0 0 ${l + 1} ${b + height}` : `L ${l} ${b + height}`;
-        const rightCorner = starboard ?
-            `L ${l + width - 1} ${b + height} A 1 1 0 0 0 ${l + width} ${b + height - 1}` :
-            `L ${l + width} ${b + height}`;
-        const g = createSVGElement("g", {class: "ship-bow"});
-        g.append(
-            createSVGElement(
-                "rect",
-                {
-                    class: "ship-body",
-                    x: l,
-                    y: b,
-                    width,
-                    height: 8 + 2 * Ship.BLEED
-                    // d: `M ${l} ${b} L ${l} ${rightCorner} L ${l + width} ${b} Z`
-                }
-            ),
-            createSVGElement(
-                "path",
-                {
-                    class: "ship-engine-bow",
-                    d: `M ${l} ${b + 8} ${leftCorner} ${rightCorner} L ${l + width} ${b + 8} Z`
-                }
-            )
-        );
-
-        // TODO longer names, different names
-        // TODO ABC for docks
-        //   TODO bold or heavy? (also for logo)
-
-        // TODO for broad ship text next to bridge?
-
-        // XXX should be property
-        /*text = createSVGElement("text", {x: l + 20, y: -(b + 1 + 2), fill: ship.color});
-        text.textContent = "AQUARIUS";
-        g.append(text);*/
-                //this.#generatePortholes(new DOMPoint(l, b + 4), 2, 1, {light: 1}),
-                //this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
-                //this.#generatePortholes(new DOMPoint(l + width - 8, b + 4), 2, 1, {light: 1})
-
-        if (starboard) {
-            const y = port ? -(b + 1) : -(b + 4 + 1);
-            let text = createSVGElement("text", {x: l + 20, y, fill: context.color});
-            text.textContent = context.name.toUpperCase();
-            g.append(text);
-        }
-
-        if (port) {
-            g.append(
-                this.#generatePortholes(new DOMPoint(l + 8, b + 4), 1, 1, {light: 1}),
-                this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
-                this.#generatePortholes(new DOMPoint(l + 28, b + 4), 1, 1, {light: 1})
-            );
-        }
-
-
-        /*if (port && starboard) {
-            g.append(
-                this.#generatePortholes(new DOMPoint(l + 8, b + 4), 1, 1, {light: 1}),
-                this.#generatePortholes(new DOMPoint(l + 12, b + 4), 1, 1, {width: 14, light: 1}),
-                this.#generatePortholes(new DOMPoint(l + 28, b + 4), 1, 1, {light: 1})
-            );
-        } else {
-            g.append(
-                this.#generatePortholes(new DOMPoint(port ? l + 20: l + 16, b + 4), 1, 1, {light: 1}),
-                this.#generatePortholes(new DOMPoint(port ? l + 24: l, b + 4), 1, 1, {width: 14, light: 1}),
-            );
-        }*/
-
-        // TODO better hitbox
-        return new Module(
-            "bridge", [new Body(Polygon.fromRect(l, b, width, height), Infinity, g)], context
-        );
-    }
-
-    #generateEngineStern(port, starboard, ship) {
-        // TODO: gradient
-        // TODO: slimmer design
-        const parts = [];
-        function generateThruster() {
-            return new Body(
-                Polygon.fromRect(-4, -10, 8, 20), Infinity,
-                createSVGElement(
-                    "path",
-                    // {class: "ship-engine-bow", d: "M -4 -10 L -4 8 A 4 2 0 0 0 4 8 L 4 -10 Z"}
-                    {class: "ship-engine-bow", d: "M -10 -10 L -10 8 A 4 2 0 0 0 -6 10 L 6 10 A 4 2 0 0 0 10 8 L 10 -10 Z"}
-                )
-            );
-        }
-
-        const thruster = createSVGElement("rect", {x: -10, y: -10, width: 20, height: 4, fill: "url(#thruster-gradient)"});
-        parts.push(new Body(Polygon.fromRect(-10, -10, 20, 4), Infinity, thruster));
-
-        const w = Ship.MODULE_WIDTH + 2 * Ship.BLEED;
-        const h = 4 * Ship.UNIT + 2 * Ship.BLEED;
-        const l = -w / 2;
-        const b = -1.5 * Ship.UNIT - Ship.BLEED;
-        const leftCorner = port ?
-            `L ${l + 1} ${b} A 1 1 0 0 0 ${l} ${b + 1}` : `L ${l} ${b}`;
-        const rightCorner = starboard ?
-            `L ${l + w} ${b + 1} A 1 1 0 0 0 ${l + w - 1} ${b}` : `L ${l + w} ${b}`;
-        const path = createSVGElement(
-            "path",
-            {
-                class: "ship-engine-bow",
-                d: `M ${l} ${b + h} L ${l + w} ${b + h} ${rightCorner} ${leftCorner} Z`
-            }
-        );
-
-        //const rect = createSVGElement(
-        //    "rect",
-        //    {
-        //        class: "ship-engine-bow",
-        //        /*x: -Ship.MODULE_WIDTH / 2 - Ship.BLEED,
-        //        y: -Ship.MODULE_HEIGHT / 2 - Ship.BLEED + Ship.UNIT,
-        //        width: Ship.MODULE_WIDTH + 2 * Ship.BLEED,
-        //        height: 4 * Ship.UNIT + 2 * Ship.BLEED,*/
-        //        x: -20.1,
-        //        y: -6.1,
-        //        width: 40.2,
-        //        height: 16.2
-        //    }
-        //);
-        parts.push(new Body(Polygon.fromRect(-20, -6, 40, 16), Infinity, path));
-        /*if (port) {
-            const thruster = generateThruster();
-            thruster.update(new DOMPoint(-14, 0), 0);
-            parts.push(thruster);
-        }
-        if (starboard) {
-            const thruster = generateThruster();
-            thruster.update(new DOMPoint(14, 0), 0);
-            parts.push(thruster);
-        }*/
-        return new Module("engine", parts, ship);
-    }
-
-    #generatePortholes(p, columns, rows, {width = 2, light = 0.5, skip = -1} = {}) {
-        const fragment = document.createDocumentFragment();
-        for (let y = 0; y < rows; y++) {
-            for (let x = 0; x < columns; x++) {
-                if (x === skip) {
-                    continue;
-                }
-                const on = Math.random() <= light ? "ship-window-on" : "";
-                fragment.append(
-                    createSVGElement(
-                        "rect",
-                        {
-                            class: `ship-window ${on}`,
-                            width,
-                            height: 1.5,
-                            x: p.x + 4 * x + 1,
-                            y: p.y + 4 * y + 1,
-                            rx: 0.25,
-                            ry: 0.25
-                        }
-                    )
-                );
-            }
-        }
-        return fragment;
-    }
-}
-
-class UI extends HTMLElement {
+export class UI extends HTMLElement {
     ship;
-    fleet;
     #shuttleNode;
     #thrusters;
 
@@ -1256,7 +456,6 @@ class UI extends HTMLElement {
     #control = new DOMPoint();
 
     #entities = [];
-    #joints = new Set();
     #annotations = new Map();
 
     #options = {rotateCam: true, debug: false, cruise: true};
@@ -1288,7 +487,24 @@ class UI extends HTMLElement {
     constructor() {
         super();
 
+        /**
+         * TODO.
+         * @type {Set<Joint>}
+         */
+        this.joints = new Set();
+        /** @type {Ship[]} */
+        this.fleet = [];
+        /** @type {Character[]} */
+        this.characters = [];
+        /**
+         * Space shuttle.
+         * @type {Shuttle}
+         */
+        this.shuttle;
         this.#generator = new FleetGenerator();
+
+        /** @type {import("./fleet/simulation.js").WorldElement} */
+        this.world;
 
         document.addEventListener("keydown", event => {
             if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "d", "w", "s", "Shift", "Enter"].includes(event.key)) {
@@ -1318,7 +534,7 @@ class UI extends HTMLElement {
                 }
                 break;
             case "Shift":
-                this.releaseShuttleLink();
+                this.shuttle.detach();
                 break;
             case "Enter":
                 this.shuttle.standBy();
@@ -1419,20 +635,6 @@ class UI extends HTMLElement {
         console.log("PAUSED");
     }
 
-    releaseShuttleLink() {
-        if (this.shuttle.links.size) {
-            for (let joint of this.shuttle.links) {
-                this.#joints.delete(joint);
-                joint.node.remove();
-                if (this.#options.debug) {
-                    this.#annotations.get(joint).remove();
-                }
-            }
-            this.shuttle.links.clear();
-            this.classList.remove("shuttle-linked");
-        }
-    }
-
     getRandomLocation() {
         const modules = this.fleet.map(ship => ship.modules).flat(2);
         return modules[Math.trunc(Math.random() * modules.length)];
@@ -1458,7 +660,7 @@ class UI extends HTMLElement {
             });
 
             this.querySelector(".release").addEventListener("click", event => {
-                this.releaseShuttleLink();
+                this.shuttle.detach();
                 event.stopPropagation();
             });
 
@@ -1481,7 +683,7 @@ class UI extends HTMLElement {
             this.#thrusters = this.#shuttleNode.querySelectorAll(".thruster");
             //this.#entities[0].position = new Vector(100, 200);
             this.#info = this.querySelector(".info .content");
-            this.world = this.querySelector("fleet-world");
+            this.world = /** @type {import("./fleet/simulation.js").WorldElement} */ (this.querySelector("fleet-world"));
 
             this.#init();
             this.world.addEventListener("tick", event => this.step(event.detail.t));
@@ -1569,7 +771,7 @@ class UI extends HTMLElement {
                 entity.update(pos, rot);
             }
 
-            for (let joint of this.#joints) {
+            for (let joint of this.joints) {
                 joint.update();
             }
             this.#computeCollisions(t);
@@ -1654,8 +856,10 @@ class UI extends HTMLElement {
                 // `rotate(${-camRot}rad) translate(${-camPos.x}px, ${-camPos.y}px) translate(${entity.position.x}px, ${entity.position.y}px) rotate(${entity.orientation}rad)`;
         }
 
-        for (let joint of this.#joints) {
-            joint.node.style.transform = `translate(${joint.position.x}px, ${joint.position.y}px)`;
+        for (let joint of this.joints) {
+            if (joint.element) {
+                joint.element.style.transform = `translate(${joint.position.x}px, ${joint.position.y}px)`;
+            }
         }
 
         // debug
@@ -1872,7 +1076,7 @@ class UI extends HTMLElement {
     }
 
     #simulateConstraints(t) {
-        for (let joint of this.#joints) {
+        for (let joint of this.joints) {
             // linear:
             // (va + j n / ma) . n = (vb - j n / mb) . n
             // va . n + j n / ma . n = vb . n - j n / mb . n
@@ -1903,12 +1107,12 @@ class UI extends HTMLElement {
             // =>
             // j = ((vb - va) + (pb - pa) / t) / (1 / ma + 1 / mb)
 
-            const anchorA = joint.entityA.matrix.transformPoint(joint.anchorA);
-            const anchorB = joint.entityB.matrix.transformPoint(joint.anchorB);
+            const anchorA = joint.bodyA.matrix.transformPoint(joint.anchorA);
+            const anchorB = joint.bodyB.matrix.transformPoint(joint.anchorB);
 
-            // lin const vr = Vector.sub(joint.entityB.velocity, joint.entityA.velocity);
+            // lin const vr = Vector.sub(joint.bodyB.velocity, joint.bodyA.velocity);
             const vr = Vector.sub(
-                joint.entityB.getVelocityAt(anchorB), joint.entityA.getVelocityAt(anchorA)
+                joint.bodyB.getVelocityAt(anchorB), joint.bodyA.getVelocityAt(anchorA)
             );
             const vd = Vector.mul(Vector.sub(anchorB, anchorA), 1 / t);
             const vv = Vector.add(vr, vd);
@@ -1936,8 +1140,8 @@ class UI extends HTMLElement {
                 a.spin += dsa;
                 b.spin += dsb;
                 // j = Vector.mul(normal, j);
-                //const dva = joint.entityA.applyImpulse(j);
-                //const dvb = joint.entityB.applyImpulse(Vector.mul(j, -1));
+                //const dva = joint.bodyA.applyImpulse(j);
+                //const dvb = joint.bodyB.applyImpulse(Vector.mul(j, -1));
                 //if (this.#frames === 0) {
                 //console.log(a.spin, dsa);
                 //console.log(
@@ -1950,7 +1154,7 @@ class UI extends HTMLElement {
             }
 
             const [dva, dvb] = respondToCollision(
-                joint.entityA, joint.entityB, anchorA, anchorB, n, vv
+                joint.bodyA, joint.bodyB, anchorA, anchorB, n, vv
             );
 
             // const n = drifting ? Vector.norm(v) : new DOMPoint(0, 1);
@@ -1962,7 +1166,7 @@ class UI extends HTMLElement {
 
             // const dva = Vector.mul(n, j / a.mass);
             // const dvb = Vector.mul(n, -j / b.mass);
-            // joint.entityA.velocity = Vector.add(
+            // joint.bodyA.velocity = Vector.add(
             // console.log("JOINT", j * t);
 
             if (this.#options.debug) {
@@ -2044,10 +1248,10 @@ class UI extends HTMLElement {
 
                 /*if (a === this.ship) {
                     let skip = false;
-                    for (let joint of this.#joints) {
+                    for (let joint of this.joints) {
                         if (
-                            (joint.entityA === a && joint.entityB === b) ||
-                            (joint.entityA === b && joint.entityB === a)
+                            (joint.bodyA === a && joint.bodyB === b) ||
+                            (joint.bodyA === b && joint.bodyB === a)
                         ) {
                             skip = true;
                             break;
@@ -2073,18 +1277,26 @@ class UI extends HTMLElement {
                     }
                 }*/
 
-                let stickyedge = false;
-                if (a === this.ship) {
-                    if (
-                        (
-                            collision.edge[0] === a.hitbox.vertices[5] &&
-                            collision.edge[1] === a.hitbox.vertices[0]
-                        ) || collision.vertex === a.hitbox.vertices[5] ||
-                        collision.vertex === a.hitbox.vertices[0]
-                    ) {
-                        stickyedge = true;
-                    }
-                }
+                //let stickyedge = false;
+                //if (a === this.ship) {
+                //    if (
+                //        (
+                //            collision.edge[0] === a.hitbox.vertices[5] &&
+                //            collision.edge[1] === a.hitbox.vertices[0]
+                //        ) || collision.vertex === a.hitbox.vertices[5] ||
+                //        collision.vertex === a.hitbox.vertices[0]
+                //    ) {
+                //        stickyedge = true;
+                //    }
+                //}
+
+                const edge = collision.a.shape.getEdge(
+                    collision.a.hitbox.vertices.indexOf(collision.edge[0])
+                );
+                const vertex = collision.b.shape.vertices[
+                    collision.b.hitbox.vertices.indexOf(collision.vertex)
+                ];
+                console.log("EDGE VERTEX I", edge, vertex);
 
                 let p = collision.vertex;
                 const DELTA = 0.1;
@@ -2099,33 +1311,14 @@ class UI extends HTMLElement {
 
                 // TEST
                 // XXX
-                /*if (a === this.ship && this.ship.joint && (this.ship.joint.entityB === b || stickyedge)) {
+                /*if (a === this.ship && this.ship.joint && (this.ship.joint.bodyB === b || stickyedge)) {
                     if (this.#options.debug) {
                         this.#annotations.get(this.ship.joint).remove();
                     }
-                    this.#joints.delete(this.ship.joint);
+                    this.joints.delete(this.ship.joint);
                     this.ship.joint = null;
                 }*/
-                // if (a === this.ship && stickyedge && (!this.ship.joint || this.ship.joint?.entityB === b)) {
-                if (
-                    a === this.shuttle.body && stickyedge &&
-                    (!this.shuttle.links.size || this.shuttle.links.values().next().value.entityB === b)
-                ) {
-                    // console.log("NEW JOINT", collision.distance);
-                    const joint = new Joint(
-                        //this.ship, new DOMPoint(0, 8), container, new DOMPoint(0, -1.25)
-                        //collision.a, collision.a.matrix.inverse().transformPoint(collision.vertex),
-                        //collision.b, collision.b.matrix.inverse().transformPoint(collision.vertex)
-                        a, a.matrix.inverse().transformPoint(p),
-                        b, b.matrix.inverse().transformPoint(p),
-                        createSVGElement("circle", {r: 0.5, fill: "url(#spark-gradient)"})
-                    );
-                    this.shuttle.links.add(joint);
-                    this.#joints.add(joint);
-                    this.#entityLayer.append(joint.node);
-                    this.classList.add("shuttle-linked");
-                    continue;
-                }
+                // if (a === this.ship && stickyedge && (!this.ship.joint || this.ship.joint?.bodyB === b)) {
 
                 const e = 0.5;
                 // linear
@@ -2157,6 +1350,12 @@ class UI extends HTMLElement {
                 const dvsa = Vector.mul(ra, dsa);
                 const dvsb = Vector.mul(rb, dsb);
 
+                const event = new CollisionEvent(
+                    "collide", {bodyA: collision.a, bodyB: collision.b, point: p, edge, vertex}
+                );
+                a.dispatchEvent(event);
+                b.dispatchEvent(event);
+
                 // console.log("VREL PRE AFT", vlin, Vec.dot(Vec.sub(b.velocity, a.velocity), normal));
                 // console.log("VREL PRE AFT", v, Vector.dot(getRelV(a, b, ra, rb), normal));
 
@@ -2165,6 +1364,26 @@ class UI extends HTMLElement {
                     // a.spin = -a.spin; // HACK
                     // a.orientation -= a.spin * t;
                 }*/
+
+                //if (
+                //    a === this.shuttle.body && stickyedge &&
+                //    (!this.shuttle.joints.size || this.shuttle.joints.values().next().value.bodyB === b)
+                //) {
+                //    console.log("NEW JOINT", collision.distance);
+                //    const joint = new Joint(
+                //        //this.ship, new DOMPoint(0, 8), container, new DOMPoint(0, -1.25)
+                //        //collision.a, collision.a.matrix.inverse().transformPoint(collision.vertex),
+                //        //collision.b, collision.b.matrix.inverse().transformPoint(collision.vertex)
+                //        a, b, a.matrix.inverse().transformPoint(p),
+                //        b.matrix.inverse().transformPoint(p),
+                //        createSVGElement("circle", {r: 0.5, fill: "url(#spark-gradient)"})
+                //    );
+                //    this.shuttle.joints.add(joint);
+                //    this.joints.add(joint);
+                //    this.#entityLayer.append(joint.element);
+                //    this.classList.add("shuttle-linked");
+                //    continue;
+                //}
 
                 if (this.#options.debug) {
                     //console.log("COLLISION", collision);
@@ -2208,7 +1427,7 @@ class UI extends HTMLElement {
 
     #init() {
         this.#entities = [];
-        this.#joints = new Set();
+        this.joints = new Set();
         this.#annotations = new Map();
         this.level = 0;
 
@@ -2286,7 +1505,7 @@ class UI extends HTMLElement {
         //this.#createContainer(new DOMPoint(-10, 70 + 8 + 2.5 / 2));
         //this.#createContainer(new DOMPoint(10, 90 + 8 + 2.5 / 2));
 
-        this.characters = Object.keys(ROLES).map(
+        this.characters = ROLES.map(
             role => new Character(role, SURNAMES[Math.trunc(Math.random() * SURNAMES.length)])
         );
         this.characters.push(
@@ -2387,37 +1606,37 @@ class UI extends HTMLElement {
             // #a1b7ff -> 226
             // 50 - 80%
     }
+
+    /**
+     * Add one or more joints between bodies.
+     *
+     * @param {Joint[]} joints - Joints to add.
+     */
+    join(...joints) {
+        for (let joint of joints) {
+            this.joints.add(joint);
+            if (joint.element) {
+                this.#entityLayer.append(joint.element);
+            }
+        }
+    }
+
+    /**
+     * Remove one or more joints between bodies.
+     *
+     * @param {Joint[]} joints - Joints to remove.
+     */
+    disjoin(...joints) {
+        for (let joint of joints) {
+            this.joints.delete(joint);
+            if (joint.element) {
+                joint.element.remove();
+            }
+            // TODO
+            if (this.#options.debug) {
+                this.#annotations.get(joint).remove();
+            }
+        }
+    }
 }
 customElements.define("fleet-ui", UI);
-
-function shuffle(array) {
-    return array.map(item => [item, Math.random()])
-        .sort((a, b) => b[1] - a[1])
-        .map(item => item[0]);
-}
-
-function sum(array) {
-    return array.reduce((previousValue, currentValue) => previousValue + currentValue);
-}
-
-class Joint {
-    entityA;
-    anchorA;
-    entityB;
-    anchorB;
-    node;
-    position;
-
-    constructor(entityA, anchorA, entityB, anchorB, node) {
-        this.entityA = entityA;
-        this.anchorA = anchorA;
-        this.entityB = entityB;
-        this.anchorB = anchorB;
-        this.node = node;
-        this.update();
-    }
-
-    update() {
-        this.position = this.entityA.matrix.transformPoint(this.anchorA);
-    }
-};

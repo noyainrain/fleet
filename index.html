@@ -194,9 +194,12 @@
 
             <svg class="navigation layer"></svg>
 
-            <div class="shuttle-state hud">
-                <p class="shuttle-target"></p>
+            <div class="shuttle-state hud x-start y-start">
                 <p class="shuttle-cargo">No cargo</p>
+            </div>
+
+            <div class="hud-alarm hud x-center y-start">
+                <p></p>
             </div>
 
             <div class="info hud">
@@ -248,7 +251,7 @@
                         <path d="M 1 1 L 63 32 L 1 63 Z" />
                     </svg>--->
                 </button>
-                <p class="version x-end y-end">v0.3</p>
+                <p class="version x-end y-end">0.1-dev.5</p>
             </div>
 
             <div class="credits layer">
@@ -586,6 +589,10 @@
                     white-space: pre;
                 }
 
+                fleet-ui:not(.shuttle-alarm-set) .hud-alarm {
+                    display: none;
+                }
+
                 fleet-ui .info {
                     /*display: none;*/
                     position: absolute;
@@ -653,6 +660,16 @@
 
                 fleet-ui .hud > * {
                     background: hsla(120, 100%, 10%, 0.5);
+                }
+
+                fleet-ui .hud.x-start.y-start > *,
+                fleet-ui .hud.x-center.y-start > * {
+                    border-bottom-right-radius: 0.25rem;
+                }
+
+                fleet-ui .hud.x-end.y-start > *,
+                fleet-ui .hud.x-center.y-start > * {
+                    border-bottom-left-radius: 0.25rem;
                 }
 
                 /*fleet-ui .hud > *:not(:first-child) {*/

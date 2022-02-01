@@ -82,6 +82,10 @@ export class WorldElement extends HTMLElement {
         //this.#baseLayer = this.querySelector("svg");
 
         // this.#cameraG = this.querySelector(".fleet-world-camera");
+
+        /** Current world timestamp in s. */
+        this.now = 0;
+
         this.reset();
     }
 
@@ -114,10 +118,34 @@ export class WorldElement extends HTMLElement {
         // TODO
     }
 
-    /** TODO. */
+    /**
+     * TODO.
+     * @param {number} time - TODO.
+     * @param {Object} options - TODO.
+     * @param {AbortSignal} options.signal - TODO.
+     */
+    async setAlarm(time, {signal}) {
+        /** @type {Promise<void>} */
+        let promise = new Promise((resolve, reject) => {
+            const onTick = () => {
+                if (signal.aborted) {
+                    this.removeEventListener("tick", onTick);
+                    reject(new DOMException("Aborted alarm", "AbortError"));
+                } else if (this.now >= time) {
+                    this.removeEventListener("tick", onTick);
+                    resolve();
+                }
+            };
+            this.addEventListener("tick", onTick);
+        });
+        return promise;
+    }
+
+    /** @param {number} now */
     #onFrame(now) {
         const t = (now - this.#now) / 1000;
         this.#now = now;
+        this.now += t; // TODO if not paused
 
         if (now >= this.#frameRateSampleTime) {
             this.frameRate = this.#frames;
@@ -162,7 +190,11 @@ export class WorldElement extends HTMLElement {
         requestAnimationFrame(now => this.#onFrame(now));
     }
 
-    /** TODO. */
+    /**
+     * Add one or more bodies to the world.
+     *
+     * @param {Body[]} bodies - Bodies to add.
+     */
     add(...bodies) {
         for (let body of bodies) {
             this.bodies.add(body);
@@ -170,6 +202,11 @@ export class WorldElement extends HTMLElement {
         }
     }
 
+    /**
+     * Remove one or more bodies from the world.
+     *
+     * @param {Body[]} bodies - Bodies to remove.
+     */
     remove(...bodies) {
         for (let body of bodies) {
             body.node.remove();
@@ -187,7 +224,7 @@ export class WorldElement extends HTMLElement {
 customElements.define("fleet-world", WorldElement);
 
 /** Rigid body in the simulated world. */
-export class Body {
+export class Body extends EventTarget {
     /** Convex hull :class:`Polygon`. May be ``null``. */
     shape;
     /** Mass in kg. */
@@ -202,8 +239,11 @@ export class Body {
     velocity = new DOMPoint();
     /** Angular velocity in rad / s. */
     spin = 0;
-    /** Transformation matrix. */
-    matrix;
+    /**
+     * Transformation matrix.
+     * @type {DOMMatrix}
+     */
+    matrix = new DOMMatrix();
     /**
      * Hit :class:`Polygon` in world coordinates. ``null`` if no :attribute:`shape` is specified.
      */
@@ -212,6 +252,7 @@ export class Body {
     node;
 
     constructor(shape, mass, node) {
+        super();
         this.shape = shape;
         this.mass = mass;
         this.node = node;
@@ -234,7 +275,12 @@ export class Body {
         return dv;
     }
 
-    /** TODO. */
+    /**
+     * Update position.
+     *
+     * @param {DOMPoint} position - New position.
+     * @param {number} orientation - New orientation.
+     */
     update(position, orientation) {
         this.position = position;
         this.orientation = orientation;
@@ -310,5 +356,63 @@ export class Body {
         }
 
         return collision;
+    }
+}
+
+/** Joint between two bodies. */
+export class Joint {
+    /**
+     * @param {Body} bodyA - One body.
+     * @param {Body} bodyB - The other body.
+     * @param {DOMPoint} anchorA - Anchor point of bodyA.
+     * @param {DOMPoint} anchorB - Anchor point of bodyB.
+     * @param {HTMLElement?} element - Graphical representation.
+     */
+    constructor(bodyA, bodyB, anchorA, anchorB, element = null) {
+        this.bodyA = bodyA;
+        this.bodyB = bodyB;
+        this.anchorA = anchorA;
+        this.anchorB = anchorB;
+        this.element = element;
+        /** Position in m. */
+        this.position = new DOMPoint();
+        this.update();
+    }
+
+    /** Update position. */
+    update() {
+        this.position = this.bodyA.matrix.transformPoint(this.anchorA);
+    }
+}
+
+//    /** member {Body} - One body. */
+//    bodyA;
+//    /** member {Body} - The other body. */
+//    bodyB;
+//    /** member {DOMPoint} - Contact point. */
+//    point;
+//    /** member {DOMPoint[]} - Contact edge of {@link CollisionEvent#bodyA}. */
+//    edge;
+//    /** member {DOMPoint} - Contact vertex of {@link CollisionEvent#bodyB}. */
+//    vertex;
+
+/** Collision event between two bodies. */
+export class CollisionEvent extends Event {
+    /**
+     * @param {"collide"} type - Name of the event.
+     * @param {Object} init - Event arguments.
+     * @param {Body} init.bodyA - One body.
+     * @param {Body} init.bodyB - The other body.
+     * @param {DOMPoint} init.point - Contact point.
+     * @param {DOMPoint[]} init.edge - Contact edge of bodyA.
+     * @param {DOMPoint} init.vertex - Contact vertex of bodyB.
+     */
+    constructor(type, {bodyA, bodyB, point, edge, vertex, ...init}) {
+        super(type, init);
+        this.bodyA = bodyA;
+        this.bodyB = bodyB;
+        this.point = point;
+        this.edge = edge;
+        this.vertex = vertex;
     }
 }
